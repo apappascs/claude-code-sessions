@@ -1,0 +1,19 @@
+{
+  "name": "claude-code-sessions",
+  "owner": {
+    "name": "Alexandros Pappas",
+    "email": "apappascs@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "claude-code-sessions",
+      "description": "Session intelligence for Claude Code: search, analyze, diff, and resume past sessions with a web dashboard",
+      "version": "0.1.0",
+      "source": "./",
+      "author": {
+        "name": "Alexandros Pappas",
+        "email": "apappascs@gmail.com"
+      }
+    }
+  ]
+}

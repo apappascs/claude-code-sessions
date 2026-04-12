@@ -1,0 +1,201 @@
+/* ═══════════════════════════════════════════════════════════════
+   tokens.css — Design tokens for claude-code-sessions
+   OKLCH color system · Dual theme · Tinted neutrals toward ochre (hue ~85)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Light theme (default) ── */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Surface hierarchy: warm-tinted neutrals, never pure white
+     Chroma 0.006 toward hue 85 (ochre/warm olive) */
+  --surface-0: oklch(0.975 0.006 85);   /* page bg — off-white warm */
+  --surface-1: oklch(0.960 0.005 85);   /* sidebar, panels */
+  --surface-2: oklch(0.940 0.005 85);   /* hover rows, subtle cards */
+  --surface-3: oklch(0.920 0.006 85);   /* inputs, elevated */
+  --surface-4: oklch(0.880 0.005 85);   /* borders, separators */
+
+  /* Text hierarchy */
+  --text-primary:   oklch(0.205 0.008 85);   /* headings, primary data */
+  --text-secondary: oklch(0.440 0.008 85);   /* labels, descriptions */
+  --text-tertiary:  oklch(0.600 0.006 85);   /* muted, timestamps */
+  --text-inverted:  oklch(0.975 0.006 85);   /* on colored bg */
+
+  /* Semantic colors — earned, not decorative */
+  --accent:       oklch(0.520 0.120 85);     /* brand ochre — links, identity */
+  --accent-hover: oklch(0.460 0.110 85);
+  --accent-muted: oklch(0.520 0.120 85 / 0.10);
+  --accent-subtle: oklch(0.520 0.120 85 / 0.05);
+
+  --green:       oklch(0.520 0.140 155);     /* success, active */
+  --green-muted: oklch(0.520 0.140 155 / 0.10);
+
+  --amber:       oklch(0.600 0.160 80);      /* pending, attention */
+  --amber-muted: oklch(0.600 0.160 80 / 0.10);
+
+  --red:         oklch(0.520 0.180 25);      /* error, blocked */
+  --red-muted:   oklch(0.520 0.180 25 / 0.10);
+
+  /* Overlay */
+  --scrim: oklch(0.205 0.008 85 / 0.08);
+}
+
+/* ── Dark theme ── */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surface hierarchy: 12-18% lightness, tinted toward hue 85
+     3 elevation steps visible */
+  --surface-0: oklch(0.155 0.008 85);   /* page bg — deep warm gray */
+  --surface-1: oklch(0.185 0.008 85);   /* sidebar, panels */
+  --surface-2: oklch(0.215 0.007 85);   /* hover rows */
+  --surface-3: oklch(0.245 0.008 85);   /* inputs, elevated */
+  --surface-4: oklch(0.290 0.007 85);   /* borders */
+
+  /* Text: +0.05 line-height adjustment in dark (done in reset) */
+  --text-primary:   oklch(0.900 0.006 85);
+  --text-secondary: oklch(0.660 0.007 85);
+  --text-tertiary:  oklch(0.480 0.006 85);
+  --text-inverted:  oklch(0.155 0.008 85);
+
+  /* Semantic — raised lightness for dark bg */
+  --accent:       oklch(0.680 0.120 85);
+  --accent-hover: oklch(0.740 0.110 85);
+  --accent-muted: oklch(0.680 0.120 85 / 0.12);
+  --accent-subtle: oklch(0.680 0.120 85 / 0.06);
+
+  --green:       oklch(0.720 0.140 155);
+  --green-muted: oklch(0.720 0.140 155 / 0.12);
+
+  --amber:       oklch(0.760 0.140 80);
+  --amber-muted: oklch(0.760 0.140 80 / 0.12);
+
+  --red:         oklch(0.680 0.170 25);
+  --red-muted:   oklch(0.680 0.170 25 / 0.12);
+
+  --scrim: oklch(0.000 0 0 / 0.30);
+}
+
+/* ── Auto dark via system preference ── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --surface-0: oklch(0.155 0.008 85);
+    --surface-1: oklch(0.185 0.008 85);
+    --surface-2: oklch(0.215 0.007 85);
+    --surface-3: oklch(0.245 0.008 85);
+    --surface-4: oklch(0.290 0.007 85);
+
+    --text-primary:   oklch(0.900 0.006 85);
+    --text-secondary: oklch(0.660 0.007 85);
+    --text-tertiary:  oklch(0.480 0.006 85);
+    --text-inverted:  oklch(0.155 0.008 85);
+
+    --accent:       oklch(0.680 0.120 85);
+    --accent-hover: oklch(0.740 0.110 85);
+    --accent-muted: oklch(0.680 0.120 85 / 0.12);
+    --accent-subtle: oklch(0.680 0.120 85 / 0.06);
+
+    --green:       oklch(0.720 0.140 155);
+    --green-muted: oklch(0.720 0.140 155 / 0.12);
+
+    --amber:       oklch(0.760 0.140 80);
+    --amber-muted: oklch(0.760 0.140 80 / 0.12);
+
+    --red:         oklch(0.680 0.170 25);
+    --red-muted:   oklch(0.680 0.170 25 / 0.12);
+
+    --scrim: oklch(0.000 0 0 / 0.30);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Typography
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  /* Font stacks */
+  --font-sans: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", monospace;
+
+  /* Type scale — 1.333 (perfect fourth) ratio, rem-based
+     xs → sm → base → lg → xl
+     0.694rem → 0.833rem → 1rem → 1.333rem → 1.777rem */
+  --text-xs:   0.694rem;     /* ~11px — captions, metadata */
+  --text-sm:   0.833rem;     /* ~13px — labels, meta */
+  --text-base: 1rem;         /* 16px — body */
+  --text-lg:   1.333rem;     /* ~21px — subheadings */
+  --text-xl:   1.777rem;     /* ~28px — page titles */
+
+  /* Line heights */
+  --lh-tight:  1.15;         /* headings */
+  --lh-snug:   1.3;          /* subheadings */
+  --lh-body:   1.55;         /* body text — +0.05 bump in dark */
+  --lh-loose:  1.7;          /* small/meta text */
+
+  /* Font weights */
+  --weight-normal:   400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+
+  /* Measure */
+  --measure: 70ch;
+
+  /* ═══════════════════════════════════════════════════════════════
+     Spacing — 4pt base
+     ═══════════════════════════════════════════════════════════════ */
+  --space-xs:  0.25rem;      /* 4px */
+  --space-sm:  0.5rem;       /* 8px */
+  --space-md:  0.75rem;      /* 12px */
+  --space-base: 1rem;        /* 16px */
+  --space-lg:  1.5rem;       /* 24px */
+  --space-xl:  2rem;         /* 32px */
+  --space-2xl: 3rem;         /* 48px */
+  --space-3xl: 4rem;         /* 64px */
+  --space-4xl: 6rem;         /* 96px */
+
+  /* Legacy compat aliases (used in inline styles in HTML) */
+  --sp-1: var(--space-xs);
+  --sp-2: var(--space-sm);
+  --sp-3: var(--space-md);
+  --sp-4: var(--space-base);
+  --sp-5: 1.25rem;
+  --sp-6: var(--space-lg);
+  --sp-8: var(--space-xl);
+
+  /* Semantic surface aliases (used by session-detail & task-panel components) */
+  --surface-primary:   var(--surface-0);
+  --surface-secondary: var(--surface-1);
+  --surface-hover:     var(--surface-2);
+
+  /* ═══════════════════════════════════════════════════════════════
+     Borders & Radii
+     ═══════════════════════════════════════════════════════════════ */
+  --border:     1px solid var(--surface-4);
+  --border-sub: 1px solid var(--surface-3);    /* subtle inner dividers */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+
+  /* ═══════════════════════════════════════════════════════════════
+     Motion
+     ═══════════════════════════════════════════════════════════════ */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+
+  --duration-instant:  100ms;
+  --duration-fast:     200ms;
+  --duration-base:     400ms;
+  --duration-slow:     600ms;
+
+  /* Shorthand transitions */
+  --transition-fast: var(--duration-instant) var(--ease-out-quart);
+  --transition-base: var(--duration-fast)    var(--ease-out-quart);
+  --transition-slow: var(--duration-base)    var(--ease-out-expo);
+
+  /* ═══════════════════════════════════════════════════════════════
+     Sidebar
+     ═══════════════════════════════════════════════════════════════ */
+  --sidebar-width: 48px;
+}

@@ -1,0 +1,23 @@
+# Normalize line endings for text files to LF across all platforms.
+# This prevents mixed-ending issues on Windows checkouts.
+
+# Shell scripts
+*.sh text eol=lf
+
+# TypeScript / JavaScript
+*.ts text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+
+# Web
+*.html text eol=lf
+*.css text eol=lf
+
+# Data and documentation
+*.json text eol=lf
+*.md text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.gif binary

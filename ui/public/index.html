@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>claude-code-sessions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/reset.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <script src="/js/app.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
+  <script>
+    // Theme toggle — persists to localStorage
+    (function() {
+      var saved = localStorage.getItem('theme');
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+      }
+    })();
+    function toggleTheme() {
+      var html = document.documentElement;
+      var current = html.getAttribute('data-theme');
+      var isDark = current === 'dark' ||
+        (!current && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var next = isDark ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+    }
+  </script>
+</head>
+<body>
+  <div class="app" x-data x-init="$store.app.init()">
+
+    <!-- Sidebar navigation -->
+    <nav class="sidebar" aria-label="Main navigation">
+      <div class="sidebar-logo" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M4 7l6-4 6 4v6l-6 4-6-4V7z"/>
+          <path d="M4 7l6 4 6-4M10 11v7" opacity="0.5"/>
+        </svg>
+      </div>
+
+      <button class="sidebar-btn"
+              data-tooltip="Dashboard"
+              :aria-current="$store.app.view === 'dashboard' ? 'page' : undefined"
+              @click="$store.app.navigate('dashboard')"
+              aria-label="Dashboard">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="1" y="1" width="6" height="6" rx="1"/>
+          <rect x="9" y="1" width="6" height="6" rx="1"/>
+          <rect x="1" y="9" width="6" height="6" rx="1"/>
+          <rect x="9" y="9" width="6" height="6" rx="1"/>
+        </svg>
+      </button>
+
+      <button class="sidebar-btn"
+              data-tooltip="Sessions"
+              :aria-current="$store.app.view === 'sessions' ? 'page' : undefined"
+              @click="$store.app.navigate('sessions')"
+              aria-label="Sessions">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <line x1="2" y1="4" x2="14" y2="4"/>
+          <line x1="2" y1="8" x2="14" y2="8"/>
+          <line x1="2" y1="12" x2="14" y2="12"/>
+        </svg>
+      </button>
+
+      <button class="sidebar-btn"
+              data-tooltip="Search ⌘K"
+              :aria-current="$store.app.view === 'search' ? 'page' : undefined"
+              @click="$store.app.navigate('search')"
+              aria-label="Search (Command K)">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="7" cy="7" r="4.5"/>
+          <line x1="10.5" y1="10.5" x2="14" y2="14"/>
+        </svg>
+      </button>
+
+      <button class="sidebar-btn"
+              data-tooltip="Tasks"
+              :aria-current="$store.app.view === 'tasks' ? 'page' : undefined"
+              @click="$store.app.navigate('tasks')"
+              aria-label="Tasks">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <polyline points="2,8 5.5,11.5 14,3"/>
+        </svg>
+      </button>
+
+      <div class="sidebar-bottom">
+        <button class="sidebar-btn"
+                data-tooltip="Toggle theme"
+                @click="toggleTheme()"
+                aria-label="Toggle light and dark theme">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="8" cy="8" r="3"/>
+            <path d="M8 2v1M8 13v1M2 8h1M13 8h1M3.75 3.75l.7.7M11.55 11.55l.7.7M12.25 3.75l-.7.7M4.45 11.55l-.7.7"/>
+          </svg>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Main content area -->
+    <main class="main">
+
+      <!-- ═══════════════════ Dashboard ═══════════════════ -->
+      <template x-if="$store.app.view === 'dashboard'">
+        <div id="view-dashboard">
+          <header class="topbar">
+            <h1 class="topbar-title">Dashboard</h1>
+          </header>
+          <div class="content" x-data="dashboard">
+
+            <!-- Loading state -->
+            <template x-if="loading">
+              <div>
+                <div class="stat-grid" style="margin-bottom:var(--space-base)">
+                  <div class="stat-card"><div class="skeleton" style="height:56px"></div></div>
+                  <div class="stat-card"><div class="skeleton" style="height:56px"></div></div>
+                  <div class="stat-card"><div class="skeleton" style="height:56px"></div></div>
+                  <div class="stat-card"><div class="skeleton" style="height:56px"></div></div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Loaded state -->
+            <template x-if="!loading && stats">
+              <div>
+                <!-- Stats row — compact inline metrics -->
+                <div class="stat-grid" style="margin-bottom:var(--sp-4)">
+                  <div class="stat-card stat-card--link" @click="$store.app.navigate('sessions')">
+                    <div class="stat-label">Sessions</div>
+                    <div class="stat-value" x-text="fmt.formatCount(stats.totalSessions)"></div>
+                    <div class="stat-sub" x-text="'across ' + stats.totalProjects + ' projects'"></div>
+                  </div>
+                  <div class="stat-card stat-card--link" @click="$store.app.navigate('tasks')">
+                    <div class="stat-label">Pending tasks</div>
+                    <div class="stat-value" style="color:var(--amber)" x-text="stats.pendingTasks"></div>
+                    <div class="stat-sub">need attention</div>
+                  </div>
+                  <div class="stat-card stat-card--link" @click="$store.app.navigate('sessions')">
+                    <div class="stat-label">Recent activity</div>
+                    <div class="stat-value" style="color:var(--green)" x-text="stats.recentSessions7d"></div>
+                    <div class="stat-sub">sessions this week</div>
+                  </div>
+                  <div class="stat-card stat-card--link" @click="recentSessions.length && $store.app.navigate('session/' + recentSessions[0].session_id)">
+                    <div class="stat-label">Latest session</div>
+                    <div class="stat-value mono" style="font-size:var(--text-sm);color:var(--accent)"
+                         x-text="recentSessions.length ? fmt.shortId(recentSessions[0].session_id) : '—'"></div>
+                    <div class="stat-sub" x-text="recentSessions.length ? fmt.relativeDate(recentSessions[0].date) : ''"></div>
+                  </div>
+                </div>
+
+                <!-- Search bar shortcut -->
+                <div class="search-input" style="margin-bottom:var(--sp-4);max-width:480px"
+                     @click="$store.app.navigate('search')"
+                     role="button"
+                     tabindex="0"
+                     aria-label="Open search">
+                  <span class="search-icon">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/>
+                    </svg>
+                  </span>
+                  <span style="color:var(--text-tertiary);font-size:var(--text-sm);cursor:pointer">Search all sessions...</span>
+                  <kbd>⌘K</kbd>
+                </div>
+
+                <!-- Two-column: Recent sessions + Pending tasks -->
+                <div class="dashboard-columns">
+
+                  <!-- Recent sessions -->
+                  <section class="panel" aria-label="Recent sessions">
+                    <div class="panel-header">
+                      <span class="panel-title">Recent sessions</span>
+                      <a class="panel-action" href="#" @click.prevent="$store.app.navigate('sessions')">View all →</a>
+                    </div>
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th>Session</th>
+                          <th>Project</th>
+                          <th>Msgs</th>
+                          <th>Duration</th>
+                          <th>Last Used</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <template x-for="s in recentSessions" :key="s.session_id">
+                          <tr style="cursor:pointer" @click="$store.app.navigate('session/' + s.session_id)">
+                            <td class="cell-id" x-text="fmt.shortId(s.session_id)"></td>
+                            <td class="cell-project" x-text="fmt.formatProject(s.project)"></td>
+                            <td class="cell-count" x-text="s.messages"></td>
+                            <td class="cell-muted" x-text="fmt.formatDuration(s.duration_minutes)"></td>
+                            <td class="cell-muted" x-text="fmt.relativeTime(s.last_activity)"></td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                    <template x-if="recentSessions.length === 0">
+                      <div class="empty-state" style="padding:var(--sp-4)">
+                        <span class="empty-state-text">No sessions found. Start a Claude Code session to see data here.</span>
+                      </div>
+                    </template>
+                  </section>
+
+                  <!-- Pending tasks -->
+                  <section class="panel" aria-label="Pending tasks">
+                    <div class="panel-header">
+                      <span class="panel-title">Pending tasks</span>
+                      <a class="panel-action" href="#" @click.prevent="$store.app.navigate('tasks')">View all →</a>
+                    </div>
+                    <div>
+                      <template x-for="(t, idx) in pendingTasks" :key="'dt-' + idx">
+                        <div class="task-item" style="cursor:pointer" @click="$store.app.openTaskPanel(t.task_list_id || t.taskListId, t.id, [t])">
+                          <div class="task-item-row">
+                            <span class="task-dot task-dot--pending"></span>
+                            <span class="task-subject" x-text="t.subject || t.description"></span>
+                          </div>
+                          <div class="task-meta">
+                            <span x-text="t.task_list_id ? fmt.shortId(t.task_list_id) : ''"></span>
+                            <template x-if="t.blockedBy && t.blockedBy.length > 0">
+                              <span style="color:var(--red)"> · blocked</span>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+                      <template x-if="pendingTasks.length === 0">
+                        <div class="empty-state" style="padding:var(--sp-4)">
+                          <span class="empty-state-text">No pending tasks. Nice work.</span>
+                        </div>
+                      </template>
+                    </div>
+                  </section>
+
+                </div>
+              </div>
+            </template>
+
+            <!-- Error state -->
+            <template x-if="!loading && error">
+              <div class="empty-state">
+                <span class="empty-state-icon">!</span>
+                <span class="empty-state-text" x-text="error"></span>
+              </div>
+            </template>
+
+            <!-- No data state -->
+            <template x-if="!loading && !stats && !error">
+              <div class="empty-state">
+                <span class="empty-state-icon">◇</span>
+                <span class="empty-state-text">No session data found. Make sure you have Claude Code sessions in ~/.claude/projects/</span>
+              </div>
+            </template>
+
+          </div>
+        </div>
+      </template>
+
+      <!-- ═══════════════════ Sessions ═══════════════════ -->
+      <template x-if="$store.app.view === 'sessions'">
+        <div id="view-sessions">
+          <header class="topbar">
+            <h1 class="topbar-title">Sessions</h1>
+          </header>
+          <div class="content" x-data="sessionsList">
+
+            <!-- Filter bar -->
+            <div class="filter-bar" style="margin-bottom:var(--sp-3)">
+              <div class="search-input" style="flex:1;max-width:320px">
+                <span class="search-icon">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/>
+                  </svg>
+                </span>
+                <input type="text"
+                       id="project-filter"
+                       name="projectFilter"
+                       placeholder="Filter by project..."
+                       x-model.debounce.300ms="projectFilter"
+                       @input="page = 1"
+                       aria-label="Filter sessions by project name">
+              </div>
+              <span class="filter-count" x-text="totalCount + ' sessions'"></span>
+            </div>
+
+            <!-- Loading -->
+            <template x-if="loading">
+              <div>
+                <div class="skeleton" style="height:36px;margin-bottom:2px"></div>
+                <div class="skeleton" style="height:36px;margin-bottom:2px"></div>
+                <div class="skeleton" style="height:36px;margin-bottom:2px"></div>
+                <div class="skeleton" style="height:36px;margin-bottom:2px"></div>
+                <div class="skeleton" style="height:36px"></div>
+              </div>
+            </template>
+
+            <!-- Error -->
+            <template x-if="!loading && error">
+              <div class="empty-state" style="padding:var(--sp-4)">
+                <span class="empty-state-icon">!</span>
+                <span class="empty-state-text" x-text="error"></span>
+              </div>
+            </template>
+
+            <!-- Table -->
+            <template x-if="!loading && !error">
+              <div>
+                <!-- Bulk action bar -->
+                <template x-if="selectionCount > 0">
+                  <div class="bulk-action-bar">
+                    <span class="bulk-action-count" x-text="selectionCount + ' selected'"></span>
+                    <template x-if="!bulkDeleteConfirm">
+                      <div style="display:flex;gap:var(--space-sm);align-items:center">
+                        <button class="btn-danger btn-sm" @click="bulkDeleteConfirm = true">Delete selected</button>
+                        <button class="btn-ghost btn-sm" @click="clearSelection()">Clear</button>
+                      </div>
+                    </template>
+                    <template x-if="bulkDeleteConfirm">
+                      <div class="inline-confirm" style="flex:1">
+                        <p class="confirm-warning" x-text="'Delete ' + selectionCount + ' session' + (selectionCount > 1 ? 's' : '') + '? This cannot be undone.'"></p>
+                        <div class="confirm-actions">
+                          <button class="btn-danger btn-sm" @click="deleteSelected(true)" :disabled="deleting"
+                                  x-text="deleting ? 'Deleting...' : 'Delete sessions + tasks'"></button>
+                          <button class="btn-ghost btn-sm" @click="deleteSelected(false)" :disabled="deleting"
+                                  x-text="deleting ? 'Deleting...' : 'Sessions only'"></button>
+                          <button class="btn-ghost btn-sm" @click="bulkDeleteConfirm = false" :disabled="deleting">Cancel</button>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+
+                <section class="panel" aria-label="Sessions list">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th class="checkbox-th" @click.stop>
+                          <input type="checkbox" class="row-checkbox" :checked="allSelected" @change="toggleAll()">
+                        </th>
+                        <th class="sortable-th" @click="toggleSort('session_id')" x-text="'Session' + sortIcon('session_id')"></th>
+                        <th class="sortable-th" @click="toggleSort('project')" x-text="'Project' + sortIcon('project')"></th>
+                        <th class="sortable-th" @click="toggleSort('messages')" x-text="'Messages' + sortIcon('messages')"></th>
+                        <th class="sortable-th" @click="toggleSort('duration_minutes')" x-text="'Duration' + sortIcon('duration_minutes')"></th>
+                        <th class="sortable-th" @click="toggleSort('size_bytes')" x-text="'Size' + sortIcon('size_bytes')"></th>
+                        <th class="sortable-th" @click="toggleSort('started')" x-text="'Started' + sortIcon('started')"></th>
+                        <th class="sortable-th" @click="toggleSort('last_activity')" x-text="'Last Used' + sortIcon('last_activity')"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template x-for="s in sessions" :key="s.session_id">
+                        <tr style="cursor:pointer"
+                            :class="isSelected(s.session_id) ? 'row-selected' : ''"
+                            @click="$store.app.navigate('session/' + s.session_id)">
+                          <td class="checkbox-td" @click.stop>
+                            <input type="checkbox" class="row-checkbox" :checked="isSelected(s.session_id)" @change="toggleSelect(s.session_id)">
+                          </td>
+                          <td class="cell-id" x-text="fmt.shortId(s.session_id)"></td>
+                          <td class="cell-project" x-text="fmt.formatProject(s.project)"></td>
+                          <td class="cell-count" x-text="s.messages"></td>
+                          <td class="cell-muted" x-text="fmt.formatDuration(s.duration_minutes)"></td>
+                          <td class="cell-muted" x-text="fmt.formatSize(s.size_bytes)"></td>
+                          <td class="cell-muted" x-text="fmt.relativeTime(s.started)"></td>
+                          <td class="cell-muted" x-text="fmt.relativeTime(s.last_activity)"></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                  <template x-if="sessions.length === 0">
+                    <div class="empty-state" style="padding:var(--sp-6)">
+                      <span class="empty-state-icon">◇</span>
+                      <span class="empty-state-text" x-text="projectFilter ? 'No sessions match &quot;' + projectFilter + '&quot;' : 'No sessions found'"></span>
+                    </div>
+                  </template>
+                </section>
+
+                <!-- Pagination -->
+                <template x-if="totalPages > 1">
+                  <div class="pagination">
+                    <button class="pagination-btn" :disabled="page <= 1" @click="prevPage()">&lsaquo; Prev</button>
+                    <span class="pagination-info" x-text="'Page ' + page + ' of ' + totalPages"></span>
+                    <button class="pagination-btn" :disabled="page >= totalPages" @click="nextPage()">Next &rsaquo;</button>
+                  </div>
+                </template>
+              </div>
+            </template>
+
+          </div>
+        </div>
+      </template>
+
+      <!-- ═══════════════════ Search ═══════════════════ -->
+      <template x-if="$store.app.view === 'search'">
+        <div id="view-search">
+          <header class="topbar">
+            <h1 class="topbar-title">Search</h1>
+          </header>
+          <div class="content" x-data="searchView">
+
+            <!-- Search input -->
+            <form @submit.prevent="doSearch()" style="margin-bottom:var(--sp-4)" role="search">
+              <div class="search-input" style="max-width:600px">
+                <span class="search-icon">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/>
+                  </svg>
+                </span>
+                <input type="search"
+                       id="search-query"
+                       name="searchQuery"
+                       placeholder="Search across all sessions... (supports regex)"
+                       x-ref="searchInput"
+                       x-model="query"
+                       x-init="$nextTick(() => $refs.searchInput.focus())"
+                       aria-label="Search across all sessions"
+                       style="width:100%">
+                <kbd style="cursor:pointer" @click="doSearch()">↵</kbd>
+              </div>
+            </form>
+
+            <!-- Loading -->
+            <template x-if="loading">
+              <div style="max-width:600px">
+                <div class="skeleton" style="height:56px;margin-bottom:var(--sp-2)"></div>
+                <div class="skeleton" style="height:56px;margin-bottom:var(--sp-2)"></div>
+                <div class="skeleton" style="height:56px"></div>
+              </div>
+            </template>
+
+            <!-- Results -->
+            <template x-if="!loading && searched && results.length > 0">
+              <div style="max-width:700px">
+                <div class="result-count" style="margin-bottom:var(--sp-3)"
+                     x-text="results.length + ' results'"></div>
+                <template x-for="(r, i) in results" :key="i">
+                  <div class="search-result">
+                    <div class="search-result-header">
+                      <span class="search-result-id" style="cursor:pointer" @click="$store.app.navigate('session/' + r.session_id)" x-text="fmt.shortId(r.session_id)"></span>
+                      <span class="search-result-project" x-text="fmt.formatProject(r.project)"></span>
+                      <span class="search-result-type" x-text="r.type"></span>
+                    </div>
+                    <div class="search-result-match" x-text="r.match"></div>
+                    <template x-if="r.context_before && r.context_before.length > 0">
+                      <div class="search-result-context"
+                           x-text="'↑ ' + r.context_before.join(' ... ')"></div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </template>
+
+            <!-- No results -->
+            <template x-if="!loading && searched && results.length === 0 && !error">
+              <div class="empty-state">
+                <span class="empty-state-icon">∅</span>
+                <span class="empty-state-text" x-text="'No results for &quot;' + query + '&quot;. Try a different keyword or regex pattern.'"></span>
+              </div>
+            </template>
+
+            <!-- Error -->
+            <template x-if="!loading && error">
+              <div class="empty-state">
+                <span class="empty-state-icon">!</span>
+                <span class="empty-state-text" x-text="error"></span>
+              </div>
+            </template>
+
+            <!-- Initial state -->
+            <template x-if="!loading && !searched">
+              <div class="empty-state">
+                <span class="empty-state-icon">
+                  <svg width="24" height="24" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1" opacity="0.4">
+                    <circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/>
+                  </svg>
+                </span>
+                <span class="empty-state-text">Search across all your Claude Code sessions by keyword or regex. Results show matched text with session context.</span>
+              </div>
+            </template>
+
+          </div>
+        </div>
+      </template>
+
+      <!-- ═══════════════════ Tasks ═══════════════════ -->
+      <template x-if="$store.app.view === 'tasks'">
+        <div id="view-tasks">
+          <header class="topbar">
+            <h1 class="topbar-title">Tasks</h1>
+            <span class="topbar-meta"
+                  x-data="tasksView" x-text="taskLists.length + ' task lists'"></span>
+          </header>
+          <div class="content" x-data="tasksView">
+
+            <!-- Loading -->
+            <template x-if="loading">
+              <div>
+                <div class="skeleton" style="height:32px;width:200px;margin-bottom:var(--sp-3)"></div>
+                <div class="skeleton" style="height:44px;margin-bottom:2px"></div>
+                <div class="skeleton" style="height:44px;margin-bottom:2px"></div>
+                <div class="skeleton" style="height:44px"></div>
+              </div>
+            </template>
+
+            <template x-if="!loading">
+              <div>
+                <!-- Orphan banner -->
+                <template x-if="orphans.length > 0">
+                  <div class="orphan-banner">
+                    <div class="orphan-banner-header">
+                      <span>&#9888; <strong x-text="orphans.length"></strong> task list<span x-show="orphans.length > 1">s</span> ha<span x-show="orphans.length > 1">ve</span><span x-show="orphans.length === 1">s</span> no matching session</span>
+                      <button class="btn-ghost btn-sm" @click="showOrphans = !showOrphans"
+                              x-text="showOrphans ? 'Hide' : 'Show orphans'"></button>
+                    </div>
+                    <template x-if="showOrphans">
+                      <div class="orphan-list">
+                        <template x-for="o in orphans" :key="o.task_list_id">
+                          <div class="orphan-item">
+                            <span class="mono" style="cursor:pointer;text-decoration:underline" @click="inspectOrphan(o.task_list_id)" x-text="fmt.shortId(o.task_list_id)"></span>
+                            <span class="cell-muted" style="cursor:pointer" @click="inspectOrphan(o.task_list_id)" x-text="o.task_count + ' tasks'"></span>
+                            <button class="btn-ghost btn-danger btn-sm" @click.stop="deleteOrphan(o.task_list_id)">Delete</button>
+                          </div>
+                        </template>
+                        <button class="btn-ghost btn-danger btn-sm" style="margin-top:var(--sp-2)"
+                                @click="deleteAllOrphans()">Delete all orphans</button>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+
+                <!-- Status filter tabs -->
+                <div style="display:flex;gap:var(--sp-1);margin-bottom:var(--space-lg)" role="tablist" aria-label="Filter tasks by status">
+                  <template x-for="status in ['all', 'in_progress', 'pending', 'completed']" :key="status">
+                    <button class="tab-btn"
+                            role="tab"
+                            :aria-selected="statusFilter === status ? 'true' : 'false'"
+                            :class="statusFilter === status ? 'is-active' : ''"
+                            @click="statusFilter = status"
+                            x-text="status === 'all' ? 'All (' + tasks.length + ')'
+                                  : status === 'in_progress' ? 'In Progress (' + grouped.in_progress.length + ')'
+                                  : status === 'pending' ? 'Pending (' + grouped.pending.length + ')'
+                                  : 'Completed (' + grouped.completed.length + ')'">
+                    </button>
+                  </template>
+                </div>
+
+                <!-- In-progress tasks -->
+                <template x-if="grouped.in_progress.length > 0">
+                  <section class="panel" style="margin-bottom:var(--sp-3)" aria-label="In progress tasks">
+                    <div class="task-group-header" @click="collapsed.in_progress = !collapsed.in_progress">
+                      <span class="task-group-chevron" :class="collapsed.in_progress && 'is-collapsed'">&#9662;</span>
+                      <span class="task-group-dot" style="color:var(--green)">●</span>
+                      <span class="task-group-label">In Progress</span>
+                      <span class="task-group-count" x-text="grouped.in_progress.length"></span>
+                    </div>
+                    <div x-show="!collapsed.in_progress" x-transition.duration.150ms>
+                      <template x-for="(t, idx) in grouped.in_progress" :key="'ip-' + idx">
+                        <div class="task-item" style="cursor:pointer" @click="$store.app.openTaskPanel(t.task_list_id || t.taskListId, t.id, [t])">
+                          <div class="task-item-row">
+                            <span class="task-dot task-dot--in-progress"></span>
+                            <span class="task-subject" x-text="t.subject || t.description"></span>
+                            <template x-if="t.activeForm">
+                              <span class="badge badge--active" style="margin-left:auto" x-text="t.activeForm"></span>
+                            </template>
+                          </div>
+                          <div class="task-meta">
+                            <span class="mono" x-text="t.task_list_id ? fmt.shortId(t.task_list_id) : ''"></span>
+                            <template x-if="t.description && t.description !== t.subject">
+                              <span x-text="' · ' + t.description.slice(0, 80)"></span>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </section>
+                </template>
+
+                <!-- Pending tasks -->
+                <template x-if="grouped.pending.length > 0">
+                  <section class="panel" style="margin-bottom:var(--sp-3)" aria-label="Pending tasks">
+                    <div class="task-group-header" @click="collapsed.pending = !collapsed.pending">
+                      <span class="task-group-chevron" :class="collapsed.pending && 'is-collapsed'">&#9662;</span>
+                      <span class="task-group-dot" style="color:var(--amber)">●</span>
+                      <span class="task-group-label">Pending</span>
+                      <span class="task-group-count" x-text="grouped.pending.length"></span>
+                    </div>
+                    <div x-show="!collapsed.pending" x-transition.duration.150ms>
+                      <template x-for="(t, idx) in grouped.pending" :key="'p-' + idx">
+                        <div class="task-item" style="cursor:pointer" @click="$store.app.openTaskPanel(t.task_list_id || t.taskListId, t.id, [t])">
+                          <div class="task-item-row">
+                            <span class="task-dot task-dot--pending"></span>
+                            <span class="task-subject" x-text="t.subject || t.description"></span>
+                            <template x-if="t.blockedBy && t.blockedBy.length > 0">
+                              <span class="badge badge--error" style="margin-left:auto">blocked</span>
+                            </template>
+                          </div>
+                          <div class="task-meta">
+                            <span class="mono" x-text="t.task_list_id ? fmt.shortId(t.task_list_id) : ''"></span>
+                            <template x-if="t.blockedBy && t.blockedBy.length > 0">
+                              <span style="color:var(--red)"> · waiting on <span x-text="t.blockedBy.join(', ')"></span></span>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </section>
+                </template>
+
+                <!-- Completed tasks -->
+                <template x-if="grouped.completed.length > 0">
+                  <section class="panel" style="margin-bottom:var(--sp-3)" aria-label="Completed tasks">
+                    <div class="task-group-header" @click="collapsed.completed = !collapsed.completed">
+                      <span class="task-group-chevron" :class="collapsed.completed && 'is-collapsed'">&#9662;</span>
+                      <span class="task-group-dot" style="color:var(--text-tertiary)">●</span>
+                      <span class="task-group-label">Completed</span>
+                      <span class="task-group-count" x-text="grouped.completed.length"></span>
+                    </div>
+                    <div x-show="!collapsed.completed" x-transition.duration.150ms>
+                      <template x-for="(t, idx) in grouped.completed" :key="'c-' + idx">
+                        <div class="task-item" style="opacity:0.6;cursor:pointer" @click="$store.app.openTaskPanel(t.task_list_id || t.taskListId, t.id, [t])">
+                          <div class="task-item-row">
+                            <span class="task-dot task-dot--completed"></span>
+                            <span class="task-subject" style="text-decoration:line-through" x-text="t.subject || t.description"></span>
+                          </div>
+                          <div class="task-meta">
+                            <span class="mono" x-text="t.task_list_id ? fmt.shortId(t.task_list_id) : ''"></span>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </section>
+                </template>
+
+                <!-- No tasks -->
+                <template x-if="filteredTasks.length === 0">
+                  <div class="empty-state">
+                    <span class="empty-state-icon">✓</span>
+                    <span class="empty-state-text" x-text="statusFilter === 'all' ? 'No tasks found across any task lists.' : 'No ' + statusFilter.replace('_', ' ') + ' tasks.'"></span>
+                  </div>
+                </template>
+              </div>
+            </template>
+
+          </div>
+        </div>
+      </template>
+
+      <!-- ═══════════════════ Session Detail ═══════════════════ -->
+      <template x-if="$store.app.view === 'session-detail'">
+        <div id="view-session-detail" x-data="sessionDetail">
+          <header class="topbar">
+            <button class="topbar-back" @click="$store.app.navigate('sessions')" aria-label="Back to sessions">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <polyline points="10,3 5,8 10,13"/>
+              </svg>
+            </button>
+            <template x-if="detail">
+              <div class="topbar-session-info">
+                <h1 class="topbar-title" x-text="'Session ' + fmt.shortId(detail.session.session_id)"></h1>
+                <span class="topbar-meta" x-text="fmt.formatProject(detail.session.project)"></span>
+                <span class="topbar-meta" x-text="fmt.relativeDate(detail.session.date)"></span>
+              </div>
+            </template>
+          </header>
+          <div class="content">
+
+            <!-- Loading -->
+            <template x-if="loading">
+              <div>
+                <div class="stat-grid" style="margin-bottom:var(--sp-4)">
+                  <div class="stat-card"><div class="skeleton" style="height:56px"></div></div>
+                  <div class="stat-card"><div class="skeleton" style="height:56px"></div></div>
+                  <div class="stat-card"><div class="skeleton" style="height:56px"></div></div>
+                  <div class="stat-card"><div class="skeleton" style="height:56px"></div></div>
+                  <div class="stat-card"><div class="skeleton" style="height:56px"></div></div>
+                </div>
+                <div class="skeleton" style="height:200px"></div>
+              </div>
+            </template>
+
+            <!-- Error -->
+            <template x-if="!loading && error">
+              <div class="empty-state">
+                <span class="empty-state-icon">!</span>
+                <span class="empty-state-text" x-text="error"></span>
+                <a href="#sessions" style="margin-top:var(--sp-2);color:var(--accent)">Back to sessions</a>
+              </div>
+            </template>
+
+            <!-- Loaded -->
+            <template x-if="!loading && detail && !error">
+              <div>
+                <!-- Working directory -->
+                <template x-if="detail.stats.cwd">
+                  <div class="session-cwd" x-text="detail.stats.cwd"></div>
+                </template>
+
+                <!-- Stats row -->
+                <div class="stat-grid" style="margin-bottom:var(--sp-3)">
+                  <div class="stat-card">
+                    <div class="stat-label">Messages</div>
+                    <div class="stat-value" x-text="detail.transcript_total ?? detail.stats.turns"></div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">Duration</div>
+                    <div class="stat-value" x-text="fmt.formatDuration(detail.stats.duration_minutes)"></div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">Input tokens</div>
+                    <div class="stat-value" x-text="fmt.formatTokens(detail.stats.tokens.input)"></div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">Output tokens</div>
+                    <div class="stat-value" x-text="fmt.formatTokens(detail.stats.tokens.output)"></div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">Cache</div>
+                    <div class="stat-value" x-text="fmt.formatTokens(detail.stats.tokens.cache_read + detail.stats.tokens.cache_create)"></div>
+                  </div>
+                </div>
+
+                <!-- Token bar -->
+                <div class="token-bar" style="margin-bottom:var(--sp-4)"
+                     x-data="{
+                       get total() { return detail.stats.tokens.input + detail.stats.tokens.output + detail.stats.tokens.cache_read + detail.stats.tokens.cache_create || 1 },
+                       pct(v) { return (v / this.total * 100).toFixed(1) + '%' }
+                     }">
+                  <div class="token-bar-segment token-bar-input" :style="'width:' + pct(detail.stats.tokens.input)"></div>
+                  <div class="token-bar-segment token-bar-output" :style="'width:' + pct(detail.stats.tokens.output)"></div>
+                  <div class="token-bar-segment token-bar-cache" :style="'width:' + pct(detail.stats.tokens.cache_read + detail.stats.tokens.cache_create)"></div>
+                </div>
+
+                <!-- Task lists -->
+                <section class="panel" style="margin-bottom:var(--sp-4)" aria-label="Associated task lists">
+                  <div class="panel-header">
+                    <span class="panel-title">Task Lists
+                      <span style="font-weight:400;color:var(--text-tertiary)" x-text="'(' + detail.task_lists.length + ')'"></span>
+                    </span>
+                  </div>
+                  <template x-if="detail.task_lists.length > 0">
+                    <div>
+                      <template x-for="tl in detail.task_lists" :key="tl.task_list_id">
+                        <div class="task-list-row" :style="tl.tasks.length > 0 ? 'cursor:pointer' : 'opacity:0.5'"
+                             @click="tl.tasks.length > 0 && openTaskPanel(tl.task_list_id)"
+                             :role="tl.tasks.length > 0 ? 'button' : undefined"
+                             :tabindex="tl.tasks.length > 0 ? 0 : undefined">
+                          <span class="mono cell-id" x-text="fmt.shortId(tl.task_list_id)"></span>
+                          <span x-text="tl.tasks.length + ' tasks'"></span>
+                          <span class="cell-muted" x-text="'(' + tl.tasks.filter(t => t.status === 'pending').length + ' pending)'"></span>
+                          <template x-if="tl.tasks.length > 0">
+                            <span class="chevron-right">&#8250;</span>
+                          </template>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                  <template x-if="detail.task_lists.length === 0">
+                    <div class="empty-state" style="padding:var(--sp-3)">
+                      <span class="empty-state-text">No task lists associated with this session.</span>
+                    </div>
+                  </template>
+                </section>
+
+                <!-- Delete session — visible before transcript -->
+                <div style="margin-bottom:var(--sp-4);display:flex;justify-content:flex-end">
+                  <template x-if="!deleteConfirm">
+                    <button class="btn-ghost btn-danger btn-sm" @click="deleteConfirm = true">Delete session</button>
+                  </template>
+                  <template x-if="deleteConfirm">
+                    <div class="inline-confirm">
+                      <template x-if="totalTasks > 0">
+                        <div>
+                          <p class="confirm-warning">Deleting this session will remove the .jsonl file permanently.
+                            <strong x-text="totalTasks + ' task' + (totalTasks > 1 ? 's' : '') + ' across ' + detail.task_lists.length + ' task list' + (detail.task_lists.length > 1 ? 's' : '') + ' will become orphans.'"></strong>
+                          </p>
+                          <div class="confirm-actions">
+                            <button class="btn-danger btn-sm" @click="doDeleteSession(true)" :disabled="deleting">Delete session + tasks</button>
+                            <button class="btn-ghost btn-sm" @click="doDeleteSession(false)" :disabled="deleting">Delete session only</button>
+                            <button class="btn-ghost btn-sm" @click="deleteConfirm = false">Cancel</button>
+                          </div>
+                        </div>
+                      </template>
+                      <template x-if="totalTasks === 0">
+                        <div>
+                          <p class="confirm-warning">Delete this session? This removes the .jsonl file permanently.</p>
+                          <div class="confirm-actions">
+                            <button class="btn-danger btn-sm" @click="doDeleteSession(false)" :disabled="deleting">Delete</button>
+                            <button class="btn-ghost btn-sm" @click="deleteConfirm = false">Cancel</button>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Transcript -->
+                <section class="panel" aria-label="Session transcript">
+                  <div class="panel-header">
+                    <span class="panel-title">Transcript</span>
+                    <button class="tab-btn" :class="showTools ? 'is-active' : ''" @click="toggleTools()"
+                            x-text="showTools ? 'Hide tool calls' : 'Show tool calls'"></button>
+                  </div>
+                  <div class="transcript">
+                    <template x-if="detail && detail.stats && detail.stats.is_resumed">
+                      <div class="transcript-resumed-banner">
+                        Resumed session — earlier context was loaded from a previous conversation and is not shown here.
+                      </div>
+                    </template>
+                    <template x-for="(msg, i) in messages" :key="i">
+                      <div class="transcript-msg" :class="'transcript-msg--' + msg.type">
+                        <div class="transcript-meta">
+                          <span class="transcript-role" x-text="msg.type === 'user' ? 'User' : msg.type === 'assistant' ? 'Assistant' : 'System'"></span>
+                          <span class="transcript-time" x-text="msg.timestamp ? msg.timestamp.slice(11, 16) : ''"></span>
+                          <template x-if="msg.model && msg.type === 'assistant'">
+                            <span class="transcript-model" x-text="msg.model"></span>
+                          </template>
+                        </div>
+                        <div class="transcript-text" x-text="msg.text || ''"></div>
+                        <template x-if="showTools && msg.toolDetails && msg.toolDetails.length > 0">
+                          <div class="transcript-tools">
+                            <template x-for="(tool, j) in msg.toolDetails" :key="j">
+                              <div class="transcript-tool">
+                                <span class="transcript-tool-name" x-text="tool.name"></span>
+                                <span class="transcript-tool-input" x-text="tool.input"></span>
+                              </div>
+                            </template>
+                          </div>
+                        </template>
+                        <template x-if="!showTools && msg.tools && msg.tools.length > 0">
+                          <div class="transcript-tools-summary" x-text="msg.tools.length + ' tool call' + (msg.tools.length > 1 ? 's' : '')"></div>
+                        </template>
+                      </div>
+                    </template>
+
+                    <!-- Load more -->
+                    <template x-if="messagesHasMore">
+                      <button class="btn-ghost" style="width:100%;margin-top:var(--sp-2)"
+                              @click="loadMore()" :disabled="loadingMore"
+                              x-text="loadingMore ? 'Loading...' : 'Load more (' + (messagesTotal - messages.length) + ' remaining)'">
+                      </button>
+                    </template>
+                  </div>
+                </section>
+
+
+              </div>
+            </template>
+
+          </div>
+        </div>
+      </template>
+
+    <!-- Task Slide-Out Panel -->
+    <template x-if="$store.app.taskPanel">
+      <div class="panel-overlay" @click.self="$store.app.closeTaskPanel()" x-data="taskPanel">
+        <aside class="task-panel" @click.stop>
+          <div class="task-panel-header">
+            <span class="panel-title">Task</span>
+            <button class="btn-icon" @click="close()" aria-label="Close panel">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/>
+              </svg>
+            </button>
+          </div>
+
+          <template x-if="currentTask">
+            <div class="task-panel-body">
+              <h2 class="task-panel-subject" x-text="currentTask.subject || currentTask.description"></h2>
+              <span class="badge" :class="{
+                'badge--active': currentTask.status === 'in_progress',
+                'badge--pending': currentTask.status === 'pending',
+                'badge--completed': currentTask.status === 'completed'
+              }" x-text="currentTask.status?.replace('_', ' ')"></span>
+
+              <template x-if="currentTask.description && currentTask.description !== currentTask.subject">
+                <div class="task-panel-section">
+                  <div class="task-panel-label">Description</div>
+                  <p x-text="currentTask.description"></p>
+                </div>
+              </template>
+
+              <template x-if="currentTask.blockedBy && currentTask.blockedBy.length > 0">
+                <div class="task-panel-section">
+                  <span class="task-panel-label">Blocked by:</span>
+                  <span x-text="currentTask.blockedBy.join(', ')"></span>
+                </div>
+              </template>
+
+              <template x-if="currentTask.blocks && currentTask.blocks.length > 0">
+                <div class="task-panel-section">
+                  <span class="task-panel-label">Blocks:</span>
+                  <span x-text="currentTask.blocks.join(', ')"></span>
+                </div>
+              </template>
+
+              <!-- Parent session link -->
+              <div class="task-panel-section">
+                <div class="task-panel-label">Parent session</div>
+                <template x-if="!isOrphan">
+                  <a class="task-panel-link" href="#" @click.prevent="goToSession()"
+                     x-text="fmt.shortId(panel.taskListId) + ' →'"></a>
+                </template>
+                <template x-if="isOrphan">
+                  <span class="cell-muted">No matching session — this task list may be orphaned</span>
+                </template>
+              </div>
+
+              <!-- Sibling tasks -->
+              <div class="task-panel-section">
+                <div class="task-panel-label" x-text="'Tasks in this list (' + siblingTasks.length + ')'"></div>
+                <div class="task-panel-siblings">
+                  <template x-for="t in siblingTasks" :key="t.id">
+                    <div class="task-panel-sibling"
+                         :class="t.id === currentTask.id ? 'is-current' : ''"
+                         @click="selectTask(t.id)"
+                         role="button" tabindex="0">
+                      <span class="task-dot" :class="{
+                        'task-dot--in-progress': t.status === 'in_progress',
+                        'task-dot--pending': t.status === 'pending',
+                        'task-dot--completed': t.status === 'completed'
+                      }"></span>
+                      <span x-text="t.subject || t.description"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Delete -->
+              <div class="task-panel-footer">
+                <template x-if="!deleteConfirm">
+                  <button class="btn-ghost btn-danger btn-sm" @click="deleteConfirm = true">Delete task</button>
+                </template>
+                <template x-if="deleteConfirm">
+                  <div class="inline-confirm">
+                    <template x-if="siblingTasks.length > 1">
+                      <div class="confirm-actions">
+                        <span class="confirm-warning">Delete this task?</span>
+                        <button class="btn-danger btn-sm" @click="doDeleteTask()" :disabled="deleting">Delete</button>
+                        <button class="btn-ghost btn-sm" @click="deleteConfirm = false">Cancel</button>
+                      </div>
+                    </template>
+                    <template x-if="siblingTasks.length <= 1">
+                      <div>
+                        <p class="confirm-warning">Last task in list. Also delete the empty task list?</p>
+                        <div class="confirm-actions">
+                          <button class="btn-danger btn-sm" @click="doDeleteTaskAndList()" :disabled="deleting">Delete task + list</button>
+                          <button class="btn-ghost btn-sm" @click="doDeleteTask()" :disabled="deleting">Delete task only</button>
+                          <button class="btn-ghost btn-sm" @click="deleteConfirm = false">Cancel</button>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </aside>
+      </div>
+    </template>
+
+    <!-- Toast Notification -->
+    <template x-if="$store.app.toast">
+      <div class="toast" :class="'toast--' + ($store.app.toast.type || 'info')"
+           x-text="$store.app.toast.message"
+           x-transition.opacity></div>
+    </template>
+
+    </main>
+  </div>
+</body>
+</html>
