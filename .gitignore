@@ -5,6 +5,8 @@ node_modules/
 docs/*
 !docs/promo-dashboard.png
 !docs/skill-examples.md
+!docs/superpowers/
+!docs/superpowers/specs/
 __pycache__/
 *.pyc
 .pytest_cache/
