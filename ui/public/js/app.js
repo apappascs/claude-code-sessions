@@ -30,6 +30,9 @@ const api = {
   deleteTaskList: (taskListId) =>
     fetch(`${BASE}/tasks/${encodeURIComponent(taskListId)}`, { method: "DELETE" })
       .then((r) => { if (!r.ok) throw new Error(`API ${r.status}`); return r.json(); }),
+  chartDailyTokens: (range) => _get(`/charts/daily-tokens?since=${range}`),
+  chartModelDistribution: (range) => _get(`/charts/model-distribution?since=${range}`),
+  chartActivityHeatmap: (range) => _get(`/charts/activity-heatmap?since=${range}`),
 };
 
 // ── Formatting helpers ──
@@ -125,6 +128,14 @@ function sanitizeError(msg) {
   return clean.trim() || "An error occurred";
 }
 
+/** Read a CSS custom property value from :root */
+function getCSSVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+// formatTokenCount is an alias for formatTokens (used by chart axis callbacks)
+const formatTokenCount = formatTokens;
+
 document.addEventListener("alpine:init", () => {
   // Global store for the app
   Alpine.store("app", {
@@ -182,6 +193,47 @@ document.addEventListener("alpine:init", () => {
           this.closeTaskPanel();
         }
       });
+    },
+  });
+
+  Alpine.store("charts", {
+    range: "30d",
+    dailyTokens: null,
+    modelDistribution: null,
+    activityHeatmap: null,
+    loading: { tokens: false, models: false, heatmap: false },
+    _chartInstances: { token: null, model: null },
+
+    async setRange(range) {
+      this.range = range;
+      await this.fetchAll();
+    },
+
+    async fetchAll() {
+      this.loading = { tokens: true, models: true, heatmap: true };
+
+      const range = this.range;
+
+      // Parallel fetch
+      const [tokens, models, heatmap] = await Promise.allSettled([
+        api.chartDailyTokens(range),
+        api.chartModelDistribution(range),
+        api.chartActivityHeatmap(range),
+      ]);
+
+      this.dailyTokens = tokens.status === "fulfilled" ? tokens.value : null;
+      this.loading.tokens = false;
+
+      this.modelDistribution = models.status === "fulfilled" ? models.value : null;
+      this.loading.models = false;
+
+      this.activityHeatmap = heatmap.status === "fulfilled" ? heatmap.value : null;
+      this.loading.heatmap = false;
+    },
+
+    destroyCharts() {
+      if (this._chartInstances.token) { this._chartInstances.token.destroy(); this._chartInstances.token = null; }
+      if (this._chartInstances.model) { this._chartInstances.model.destroy(); this._chartInstances.model = null; }
     },
   });
 
@@ -661,6 +713,210 @@ document.addEventListener("alpine:init", () => {
       }
       this.deleting = false;
       this.deleteConfirm = false;
+    },
+  }));
+});
+
+document.addEventListener("alpine:init", () => {
+  Alpine.data("chartsComponent", () => ({
+    async init() {
+      await Alpine.store("charts").fetchAll();
+      this.$watch("$store.charts.dailyTokens", () => this.renderTokenChart());
+      this.$watch("$store.charts.modelDistribution", () => this.renderModelChart());
+      this.$watch("$store.charts.activityHeatmap", () => this.renderHeatmap());
+      // Re-render on theme change
+      const observer = new MutationObserver(() => {
+        Alpine.store("charts").destroyCharts();
+        this.renderTokenChart();
+        this.renderModelChart();
+        this.renderHeatmap();
+      });
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    },
+
+    renderTokenChart() {
+      const data = Alpine.store("charts").dailyTokens;
+      if (!data || !data.labels.length) return;
+      const canvas = this.$refs.tokenChart;
+      if (!canvas) return;
+
+      Alpine.store("charts").destroyCharts();
+
+      const textTertiary = getCSSVar("--text-tertiary");
+      const surface3 = getCSSVar("--surface-3");
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+      Alpine.store("charts")._chartInstances.token = new Chart(canvas, {
+        type: "bar",
+        data: {
+          labels: data.labels.map((d) => {
+            const parts = d.split("-");
+            return parts[2] + (parts[2] === "01" ? " " + months[parseInt(parts[1], 10) - 1] : "");
+          }),
+          datasets: [
+            { label: "Output",       data: data.datasets.output,       backgroundColor: getCSSVar("--chart-1") },
+            { label: "Input",        data: data.datasets.input,        backgroundColor: getCSSVar("--chart-2") },
+            { label: "Cache Read",   data: data.datasets.cache_read,   backgroundColor: getCSSVar("--chart-3") },
+            { label: "Cache Create", data: data.datasets.cache_create, backgroundColor: getCSSVar("--chart-4") },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              stacked: true,
+              grid: { display: false },
+              ticks: { font: { family: getCSSVar("--font-mono"), size: 10 }, color: textTertiary, maxRotation: 0 },
+            },
+            y: {
+              stacked: true,
+              grid: { color: surface3 },
+              ticks: { font: { family: getCSSVar("--font-mono"), size: 10 }, color: textTertiary, callback: (v) => formatTokenCount(v) },
+            },
+          },
+          plugins: {
+            legend: { display: true, position: "bottom", labels: {
+              color: getCSSVar("--text-secondary"),
+              font: { family: getCSSVar("--font-sans"), size: 11 },
+              boxWidth: 10, boxHeight: 10, padding: 16, usePointStyle: true, pointStyle: "rectRounded",
+            }},
+            tooltip: {
+              backgroundColor: getCSSVar("--surface-3"),
+              titleColor: getCSSVar("--text-primary"),
+              bodyColor: getCSSVar("--text-primary"),
+              bodyFont: { family: getCSSVar("--font-mono") },
+              cornerRadius: 2,
+              displayColors: true,
+              callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${formatTokenCount(ctx.raw)}` },
+            },
+          },
+        },
+      });
+    },
+
+    renderModelChart() {
+      const data = Alpine.store("charts").modelDistribution;
+      if (!data || !data.length) return;
+      const canvas = this.$refs.modelChart;
+      if (!canvas) return;
+
+      if (Alpine.store("charts")._chartInstances.model) {
+        Alpine.store("charts")._chartInstances.model.destroy();
+      }
+
+      const surface0 = getCSSVar("--surface-0");
+      const chartColors = [1, 2, 3, 4, 5, 6].map((n) => getCSSVar("--chart-" + n));
+      const colors = data.map((_, i) => chartColors[i % chartColors.length]);
+
+      const totalTokens = data.reduce((s, d) => s + d.tokens, 0);
+
+      Alpine.store("charts")._chartInstances.model = new Chart(canvas, {
+        type: "doughnut",
+        data: {
+          labels: data.map((d) => d.model),
+          datasets: [{ data: data.map((d) => d.tokens), backgroundColor: colors, borderColor: surface0, borderWidth: 2 }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          cutout: "60%",
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: getCSSVar("--surface-3"),
+              titleColor: getCSSVar("--text-primary"),
+              bodyColor: getCSSVar("--text-primary"),
+              bodyFont: { family: getCSSVar("--font-mono") },
+              cornerRadius: 2,
+              callbacks: {
+                label: (ctx) => {
+                  const pct = totalTokens > 0 ? ((ctx.raw / totalTokens) * 100).toFixed(1) : "0";
+                  return ` ${ctx.label}: ${formatTokenCount(ctx.raw)} (${pct}%)`;
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Render legend
+      const legendEl = this.$refs.modelLegend;
+      if (legendEl) {
+        legendEl.innerHTML = data.map((d, i) => {
+          const pct = totalTokens > 0 ? ((d.tokens / totalTokens) * 100).toFixed(0) : "0";
+          return `<div class="chart-legend-item">
+            <span class="chart-legend-swatch" style="background:${colors[i]}"></span>
+            <span class="chart-legend-label">${d.model}</span>
+            <span class="chart-legend-value">${pct}%</span>
+          </div>`;
+        }).join("");
+      }
+    },
+
+    renderHeatmap() {
+      const data = Alpine.store("charts").activityHeatmap;
+      if (!data) return;
+      const canvas = this.$refs.heatmapCanvas;
+      if (!canvas) return;
+
+      const ctx = canvas.getContext("2d");
+      const dpr = window.devicePixelRatio || 1;
+
+      const labelW = 32;
+      const labelH = 16;
+      const gap = 2;
+      const availW = canvas.clientWidth - labelW;
+      const cellW = Math.floor((availW - gap * 23) / 24);
+      const cellH = Math.floor(cellW / 1.6);
+
+      canvas.width = (labelW + cellW * 24 + gap * 23) * dpr;
+      canvas.height = (labelH + cellH * 7 + gap * 6) * dpr;
+      canvas.style.height = (labelH + cellH * 7 + gap * 6) + "px";
+      ctx.scale(dpr, dpr);
+
+      const heatRamp = [0, 1, 2, 3, 4].map((n) => getCSSVar("--heatmap-" + n));
+      const textSecondary = getCSSVar("--text-secondary");
+
+      function intensityColor(value, max) {
+        if (value === 0) return heatRamp[0];
+        const pct = max > 0 ? value / max : 0;
+        if (pct <= 0.25) return heatRamp[1];
+        if (pct <= 0.50) return heatRamp[2];
+        if (pct <= 0.75) return heatRamp[3];
+        return heatRamp[4];
+      }
+
+      // Hour labels (top) — every 3 hours
+      ctx.font = `10px ${getCSSVar("--font-sans")}`;
+      ctx.fillStyle = textSecondary;
+      ctx.textAlign = "center";
+      for (let h = 0; h < 24; h += 3) {
+        const x = labelW + h * (cellW + gap) + cellW / 2;
+        ctx.fillText(String(h).padStart(2, "0"), x, 10);
+      }
+
+      // Grid
+      for (let day = 0; day < 7; day++) {
+        // Day label
+        ctx.font = `10px ${getCSSVar("--font-sans")}`;
+        ctx.fillStyle = textSecondary;
+        ctx.textAlign = "right";
+        ctx.fillText(data.dayLabels[day], labelW - 6, labelH + day * (cellH + gap) + cellH / 2 + 3);
+
+        for (let hour = 0; hour < 24; hour++) {
+          const x = labelW + hour * (cellW + gap);
+          const y = labelH + day * (cellH + gap);
+          const value = data.grid[day][hour];
+
+          ctx.fillStyle = intensityColor(value, data.maxValue);
+          ctx.beginPath();
+          ctx.roundRect(x, y, cellW, cellH, 2);
+          ctx.fill();
+        }
+      }
     },
   }));
 });

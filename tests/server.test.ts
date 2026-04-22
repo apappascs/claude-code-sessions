@@ -251,3 +251,71 @@ describe("Path traversal protection", () => {
     rmSync(publicDir, { recursive: true });
   });
 });
+
+describe("chart API endpoints", () => {
+  test("GET /api/charts/daily-tokens returns chart data", async () => {
+    const res = await request("/api/charts/daily-tokens?since=2026-04-01");
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.labels).toBeDefined();
+    expect(data.datasets).toBeDefined();
+    expect(data.datasets.input).toBeDefined();
+    expect(data.datasets.output).toBeDefined();
+    expect(data.datasets.cache_read).toBeDefined();
+    expect(data.datasets.cache_create).toBeDefined();
+  });
+
+  test("GET /api/charts/model-distribution returns model data", async () => {
+    const res = await request("/api/charts/model-distribution");
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(Array.isArray(data)).toBe(true);
+    if (data.length > 0) {
+      expect(data[0].model).toBeDefined();
+      expect(data[0].tokens).toBeDefined();
+      expect(data[0].sessions).toBeDefined();
+    }
+  });
+
+  test("GET /api/charts/activity-heatmap returns grid", async () => {
+    const res = await request("/api/charts/activity-heatmap");
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.grid.length).toBe(7);
+    expect(data.grid[0].length).toBe(24);
+    expect(data.dayLabels.length).toBe(7);
+    expect(data.hourLabels.length).toBe(24);
+  });
+});
+
+describe("date param passthrough", () => {
+  test("GET /api/sessions with since param", async () => {
+    const res = await request("/api/sessions?since=2026-04-09&limit=10");
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(Array.isArray(data)).toBe(true);
+    // Fixture session is from 2026-04-10, so it should be included
+    expect(data.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/sessions with since param filters correctly", async () => {
+    const res = await request("/api/sessions?since=2026-04-11&limit=10");
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.length).toBe(0);
+  });
+
+  test("GET /api/sessions with until param", async () => {
+    const res = await request("/api/sessions?until=2026-04-09&limit=10");
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.length).toBe(0);
+  });
+
+  test("GET /api/dashboard/stats with since param", async () => {
+    const res = await request("/api/dashboard/stats?since=2026-04-09");
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.totalSessions).toBeGreaterThan(0);
+  });
+});

@@ -11,6 +11,9 @@ import {
   deleteTaskList,
   findCleanupCandidates,
   findOrphanTaskLists,
+  getActivityHeatmap,
+  getDailyTokenAggregation,
+  getModelDistribution,
   getSessionDetail,
   getTimeline,
   isValidId,
@@ -119,6 +122,8 @@ function routeApi(
       projectFilter: params.get("project") || undefined,
       sort: (params.get("sort") as "recency" | "size" | "duration") || "recency",
       limit: parseInt(params.get("limit") || "20", 10),
+      since: params.get("since") || undefined,
+      until: params.get("until") || undefined,
     });
     // Remap camelCase → snake_case to match CLI output and test expectations
     const out = sessions.map((s) => ({
@@ -151,6 +156,7 @@ function routeApi(
       projectsBase,
       projectFilter: params.get("project") || undefined,
       since: params.get("since") || undefined,
+      until: params.get("until") || undefined,
       limit: parseInt(params.get("limit") || "20", 10),
       context: parseInt(params.get("context") || "1", 10),
     });
@@ -174,6 +180,8 @@ function routeApi(
       projectsBase,
       statusFilter: params.get("status") || "all",
       taskListId: params.get("task_list") || undefined,
+      since: params.get("since") || undefined,
+      until: params.get("until") || undefined,
     });
     return jsonResponse(tasks);
   }
@@ -186,6 +194,8 @@ function routeApi(
 
   // GET /api/dashboard/stats
   if (path === "/api/dashboard/stats" && method === "GET") {
+    const since = params.get("since") || undefined;
+    const until = params.get("until") || undefined;
     const allSessions = listSessions({ projectsBase, sort: "recency", limit: 9999 });
     const projects = new Set(allSessions.map((s) => s.project));
     const pendingTasks = aggregateTasks({ tasksBase, projectsBase, statusFilter: "pending" });
@@ -208,6 +218,7 @@ function routeApi(
       projectsBase,
       projectFilter: params.get("project") || undefined,
       since: params.get("since") || undefined,
+      until: params.get("until") || undefined,
     });
     // Remap camelCase → snake_case
     const out = timeline.map((s) => ({
@@ -358,6 +369,39 @@ function routeApi(
         path: o.path,
       })),
     );
+  }
+
+  // GET /api/charts/daily-tokens
+  if (path === "/api/charts/daily-tokens" && method === "GET") {
+    const data = getDailyTokenAggregation({
+      projectsBase,
+      projectFilter: params.get("project") || undefined,
+      since: params.get("since") || undefined,
+      until: params.get("until") || undefined,
+    });
+    return jsonResponse(data);
+  }
+
+  // GET /api/charts/model-distribution
+  if (path === "/api/charts/model-distribution" && method === "GET") {
+    const data = getModelDistribution({
+      projectsBase,
+      projectFilter: params.get("project") || undefined,
+      since: params.get("since") || undefined,
+      until: params.get("until") || undefined,
+    });
+    return jsonResponse(data);
+  }
+
+  // GET /api/charts/activity-heatmap
+  if (path === "/api/charts/activity-heatmap" && method === "GET") {
+    const data = getActivityHeatmap({
+      projectsBase,
+      projectFilter: params.get("project") || undefined,
+      since: params.get("since") || undefined,
+      until: params.get("until") || undefined,
+    });
+    return jsonResponse(data);
   }
 
   return errorResponse("Not found", 404);

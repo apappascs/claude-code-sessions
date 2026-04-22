@@ -67,3 +67,94 @@ export function parseTimestamp(ts: string | number | null | undefined): Date | n
     return null;
   }
 }
+
+export interface TableColumn {
+  key: string;
+  label: string;
+  align?: "left" | "right";
+  width?: number;
+  format?: (value: unknown) => string;
+}
+
+/** Format an array of objects as a plain-text aligned table. */
+export function formatTable(rows: Record<string, unknown>[], columns: TableColumn[]): string {
+  // Compute cell values
+  const cells: string[][] = rows.map((row) =>
+    columns.map((col) => {
+      const raw = row[col.key];
+      let val = col.format ? col.format(raw) : String(raw ?? "");
+      if (col.width && val.length > col.width) {
+        val = truncate(val, col.width);
+      }
+      return val;
+    }),
+  );
+
+  // Compute column widths
+  const widths = columns.map((col, i) => {
+    const dataMax = cells.reduce((max, row) => Math.max(max, row[i].length), 0);
+    return Math.max(col.label.length, dataMax);
+  });
+
+  // Render header
+  const header = columns
+    .map((col, i) => {
+      const w = widths[i];
+      return col.align === "right" ? col.label.padStart(w) : col.label.padEnd(w);
+    })
+    .join("  ");
+
+  // Separator
+  const sep = widths.map((w) => "─".repeat(w)).join("──");
+
+  // Data rows
+  const dataLines = cells.map((row) =>
+    columns
+      .map((col, i) => {
+        const w = widths[i];
+        return col.align === "right" ? row[i].padStart(w) : row[i].padEnd(w);
+      })
+      .join("  "),
+  );
+
+  // Footer
+  const footer = `${rows.length} row${rows.length !== 1 ? "s" : ""}`;
+
+  return [header, sep, ...dataLines, footer].join("\n");
+}
+
+/**
+ * Parse a date range boundary string.
+ * Accepts: ISO date ("2026-04-01"), relative shorthand ("7d", "2w", "3m"),
+ * or ISO datetime ("2026-04-01T14:00:00Z").
+ * Returns a Date or null if unparseable.
+ */
+export function parseDateBoundary(input: string): Date | null {
+  if (!input) return null;
+
+  // Relative: Nd, Nw, Nm
+  const relMatch = input.match(/^(\d+)([dwm])$/);
+  if (relMatch) {
+    const n = parseInt(relMatch[1], 10);
+    const unit = relMatch[2];
+    const now = new Date();
+    if (unit === "d") {
+      now.setDate(now.getDate() - n);
+    } else if (unit === "w") {
+      now.setDate(now.getDate() - n * 7);
+    } else if (unit === "m") {
+      now.setMonth(now.getMonth() - n);
+    }
+    return now;
+  }
+
+  // ISO date or datetime
+  try {
+    const d = new Date(input);
+    if (!Number.isNaN(d.getTime())) return d;
+  } catch {
+    // fall through
+  }
+
+  return null;
+}

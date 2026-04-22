@@ -1,6 +1,15 @@
 // tests/formatters.test.ts
 import { describe, expect, test } from "bun:test";
-import { formatDuration, formatSize, parseTimestamp, toJson, toNdjson, truncate } from "../lib/formatters";
+import {
+  formatDuration,
+  formatSize,
+  formatTable,
+  parseDateBoundary,
+  parseTimestamp,
+  toJson,
+  toNdjson,
+  truncate,
+} from "../lib/formatters";
 
 describe("toJson", () => {
   test("compact serialization", () => {
@@ -120,5 +129,110 @@ describe("parseTimestamp", () => {
 
   test("undefined returns null", () => {
     expect(parseTimestamp(undefined)).toBeNull();
+  });
+});
+
+describe("parseDateBoundary", () => {
+  test("ISO date string returns midnight UTC", () => {
+    const d = parseDateBoundary("2026-04-01");
+    expect(d).toBeInstanceOf(Date);
+    expect(d!.toISOString()).toBe("2026-04-01T00:00:00.000Z");
+  });
+
+  test("ISO datetime string returns exact time", () => {
+    const d = parseDateBoundary("2026-04-01T14:30:00Z");
+    expect(d).toBeInstanceOf(Date);
+    expect(d!.toISOString()).toBe("2026-04-01T14:30:00.000Z");
+  });
+
+  test("relative days: 7d", () => {
+    const d = parseDateBoundary("7d");
+    expect(d).toBeInstanceOf(Date);
+    const diff = Date.now() - d!.getTime();
+    expect(Math.abs(diff - 7 * 24 * 60 * 60 * 1000)).toBeLessThan(1000);
+  });
+
+  test("relative weeks: 2w", () => {
+    const d = parseDateBoundary("2w");
+    expect(d).toBeInstanceOf(Date);
+    const diff = Date.now() - d!.getTime();
+    expect(Math.abs(diff - 14 * 24 * 60 * 60 * 1000)).toBeLessThan(1000);
+  });
+
+  test("relative months: 3m", () => {
+    const d = parseDateBoundary("3m");
+    expect(d).toBeInstanceOf(Date);
+    const now = new Date();
+    const expected = new Date(now);
+    expected.setMonth(expected.getMonth() - 3);
+    expect(Math.abs(d!.getTime() - expected.getTime())).toBeLessThan(1000);
+  });
+
+  test("invalid string returns null", () => {
+    expect(parseDateBoundary("garbage")).toBeNull();
+    expect(parseDateBoundary("")).toBeNull();
+    expect(parseDateBoundary("abc123")).toBeNull();
+  });
+});
+
+describe("formatTable", () => {
+  test("renders header, separator, and rows", () => {
+    const rows = [
+      { id: "abc123", name: "Test", count: 42 },
+      { id: "def456", name: "Other", count: 7 },
+    ];
+    const columns: { key: string; label: string; align?: "left" | "right" }[] = [
+      { key: "id", label: "ID" },
+      { key: "name", label: "NAME" },
+      { key: "count", label: "COUNT", align: "right" },
+    ];
+    const result = formatTable(rows, columns);
+    const lines = result.split("\n").filter(Boolean);
+    // Header + separator + 2 data rows + footer
+    expect(lines.length).toBe(5);
+    expect(lines[0]).toContain("ID");
+    expect(lines[0]).toContain("NAME");
+    expect(lines[0]).toContain("COUNT");
+    expect(lines[1]).toMatch(/^[-─]+$/);
+    expect(lines[2]).toContain("abc123");
+    expect(lines[4]).toBe("2 rows");
+  });
+
+  test("empty rows returns header + separator + footer", () => {
+    const columns: { key: string; label: string }[] = [{ key: "id", label: "ID" }];
+    const result = formatTable([], columns);
+    const lines = result.split("\n").filter(Boolean);
+    expect(lines.length).toBe(3);
+    expect(lines[2]).toBe("0 rows");
+  });
+
+  test("truncates long values with width option", () => {
+    const rows = [{ text: "a".repeat(100) }];
+    const columns: { key: string; label: string; width?: number }[] = [{ key: "text", label: "TEXT", width: 20 }];
+    const result = formatTable(rows, columns);
+    expect(result).toContain(`${"a".repeat(17)}...`);
+  });
+
+  test("right-aligns numeric columns", () => {
+    const rows = [{ n: 42 }, { n: 1234 }];
+    const columns: { key: string; label: string; align?: "left" | "right" }[] = [
+      { key: "n", label: "NUM", align: "right" },
+    ];
+    const result = formatTable(rows, columns);
+    const lines = result.split("\n").filter(Boolean);
+    // "42" should be right-padded less than "1234"
+    const line42 = lines[2];
+    const line1234 = lines[3];
+    // Right-aligned means the value ends at the same column position
+    expect(line42.trimEnd().length).toBeLessThanOrEqual(line1234.trimEnd().length);
+  });
+
+  test("custom format function", () => {
+    const rows = [{ bytes: 2048 }];
+    const columns: { key: string; label: string; format?: (v: unknown) => string }[] = [
+      { key: "bytes", label: "SIZE", format: (v) => formatSize(v as number) },
+    ];
+    const result = formatTable(rows, columns);
+    expect(result).toContain("2.0 KB");
   });
 });

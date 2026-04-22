@@ -37,6 +37,23 @@
   --red:         oklch(0.520 0.180 25);      /* error, blocked */
   --red-muted:   oklch(0.520 0.180 25 / 0.10);
 
+  /* Chart palette — distinct, readable segments
+     Spread across hue wheel for maximum differentiation.
+     Output is primary (accent), others recede but stay distinguishable. */
+  --chart-1: oklch(0.520 0.120 85);      /* ochre — output (hero) */
+  --chart-2: oklch(0.480 0.100 220);     /* slate blue — input */
+  --chart-3: oklch(0.520 0.140 155);     /* green — cache read */
+  --chart-4: oklch(0.560 0.100 300);     /* muted violet — cache create */
+  --chart-5: oklch(0.520 0.180 25);      /* red */
+  --chart-6: oklch(0.600 0.060 85);      /* warm gray — "other" */
+
+  /* Heatmap ramp — 5 perceptually even steps from neutral to accent */
+  --heatmap-0: oklch(0.940 0.005 85);    /* empty — same as surface-2 */
+  --heatmap-1: oklch(0.850 0.040 85);    /* low */
+  --heatmap-2: oklch(0.740 0.080 85);    /* medium-low */
+  --heatmap-3: oklch(0.620 0.100 85);    /* medium-high */
+  --heatmap-4: oklch(0.520 0.120 85);    /* high — full accent */
+
   /* Overlay */
   --scrim: oklch(0.205 0.008 85 / 0.08);
 }
@@ -74,6 +91,21 @@
   --red:         oklch(0.680 0.170 25);
   --red-muted:   oklch(0.680 0.170 25 / 0.12);
 
+  /* Chart palette — raised lightness for dark bg */
+  --chart-1: oklch(0.680 0.120 85);      /* ochre — output */
+  --chart-2: oklch(0.650 0.100 220);     /* slate blue — input */
+  --chart-3: oklch(0.720 0.140 155);     /* green — cache read */
+  --chart-4: oklch(0.680 0.100 300);     /* muted violet — cache create */
+  --chart-5: oklch(0.680 0.170 25);      /* red */
+  --chart-6: oklch(0.500 0.040 85);      /* warm gray — "other" */
+
+  /* Heatmap ramp — visible on dark surfaces */
+  --heatmap-0: oklch(0.215 0.007 85);    /* empty — same as surface-2 */
+  --heatmap-1: oklch(0.340 0.040 85);    /* low */
+  --heatmap-2: oklch(0.460 0.080 85);    /* medium-low */
+  --heatmap-3: oklch(0.580 0.100 85);    /* medium-high */
+  --heatmap-4: oklch(0.680 0.120 85);    /* high — full accent */
+
   --scrim: oklch(0.000 0 0 / 0.30);
 }
 
@@ -106,6 +138,19 @@
 
     --red:         oklch(0.680 0.170 25);
     --red-muted:   oklch(0.680 0.170 25 / 0.12);
+
+    --chart-1: oklch(0.680 0.120 85);
+    --chart-2: oklch(0.650 0.100 220);
+    --chart-3: oklch(0.720 0.140 155);
+    --chart-4: oklch(0.680 0.100 300);
+    --chart-5: oklch(0.680 0.170 25);
+    --chart-6: oklch(0.500 0.040 85);
+
+    --heatmap-0: oklch(0.215 0.007 85);
+    --heatmap-1: oklch(0.340 0.040 85);
+    --heatmap-2: oklch(0.460 0.080 85);
+    --heatmap-3: oklch(0.580 0.100 85);
+    --heatmap-4: oklch(0.680 0.120 85);
 
     --scrim: oklch(0.000 0 0 / 0.30);
   }
