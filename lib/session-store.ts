@@ -16,7 +16,7 @@
 import { existsSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
-import { parseTimestamp, toJson, toNdjson, truncate } from "./formatters";
+import { parseDateBoundary, parseTimestamp, toJson, toNdjson, truncate } from "./formatters";
 import { extractUserText, getStats, getTasks, type SessionStats } from "./session-parser";
 
 // ---------------------------------------------------------------------------
@@ -277,6 +277,8 @@ export interface ListSessionsOptions {
   projectFilter?: string;
   sort?: "recency" | "size" | "duration";
   limit?: number;
+  since?: string;
+  until?: string;
   projectsBase?: string;
 }
 
@@ -305,15 +307,27 @@ export function listSessions(opts: ListSessionsOptions = {}): SessionSummary[] {
     }
   }
 
+  // Date filtering
+  const sinceDt = opts.since ? parseDateBoundary(opts.since) : null;
+  const untilDt = opts.until ? parseDateBoundary(opts.until) : null;
+
+  const filtered = sessions.filter((s) => {
+    const ts = parseTimestamp(s.lastActivity ?? s.started);
+    if (!ts) return !sinceDt && !untilDt; // keep sessions with no timestamp only if no filter
+    if (sinceDt && ts < sinceDt) return false;
+    if (untilDt && ts > untilDt) return false;
+    return true;
+  });
+
   if (sort === "recency") {
-    sessions.sort((a, b) => (b.lastActivity ?? "").localeCompare(a.lastActivity ?? ""));
+    filtered.sort((a, b) => (b.lastActivity ?? "").localeCompare(a.lastActivity ?? ""));
   } else if (sort === "size") {
-    sessions.sort((a, b) => b.sizeBytes - a.sizeBytes);
+    filtered.sort((a, b) => b.sizeBytes - a.sizeBytes);
   } else if (sort === "duration") {
-    sessions.sort((a, b) => b.durationMinutes - a.durationMinutes);
+    filtered.sort((a, b) => b.durationMinutes - a.durationMinutes);
   }
 
-  return sessions.slice(0, limit);
+  return filtered.slice(0, limit);
 }
 
 // ---------------------------------------------------------------------------
@@ -323,6 +337,7 @@ export function listSessions(opts: ListSessionsOptions = {}): SessionSummary[] {
 export interface SearchSessionsOptions {
   projectFilter?: string;
   since?: string;
+  until?: string;
   limit?: number;
   context?: number;
   projectsBase?: string;
@@ -339,13 +354,8 @@ export function searchSessions(query: string, opts: SearchSessionsOptions = {}):
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const pattern = new RegExp(escaped, "i");
 
-  let sinceDt: Date | null = null;
-  if (opts.since) {
-    const parsed = new Date(opts.since);
-    if (!Number.isNaN(parsed.getTime())) {
-      sinceDt = parsed;
-    }
-  }
+  const sinceDt = opts.since ? parseDateBoundary(opts.since) : null;
+  const untilDt = opts.until ? parseDateBoundary(opts.until) : null;
 
   const results: SearchResult[] = [];
 
@@ -379,9 +389,12 @@ export function searchSessions(query: string, opts: SearchSessionsOptions = {}):
       for (let i = 0; i < linesData.length; i++) {
         const obj = linesData[i];
 
-        if (sinceDt) {
+        if (sinceDt || untilDt) {
           const ts = parseTimestamp(obj.timestamp);
-          if (ts && ts < sinceDt) continue;
+          if (ts) {
+            if (sinceDt && ts < sinceDt) continue;
+            if (untilDt && ts > untilDt) continue;
+          }
         }
 
         let searchable = "";
@@ -443,29 +456,20 @@ export function searchSessions(query: string, opts: SearchSessionsOptions = {}):
 export interface GetTimelineOptions {
   projectFilter?: string;
   since?: string;
+  until?: string;
   projectsBase?: string;
 }
 
 /** Chronological list of sessions for a project. */
 export function getTimeline(opts: GetTimelineOptions = {}): SessionSummary[] {
-  let sessions = listSessions({
+  const sessions = listSessions({
     projectFilter: opts.projectFilter,
     sort: "recency",
     limit: 1000,
+    since: opts.since,
+    until: opts.until,
     projectsBase: opts.projectsBase,
   });
-
-  if (opts.since) {
-    try {
-      const sinceDt = new Date(opts.since);
-      if (!Number.isNaN(sinceDt.getTime())) {
-        const sinceStr = sinceDt.toISOString().slice(0, 10);
-        sessions = sessions.filter((s) => (s.date ?? "") >= sinceStr);
-      }
-    } catch {
-      // ignore invalid date
-    }
-  }
 
   sessions.reverse();
   return sessions;
@@ -902,6 +906,8 @@ export function listTaskLists(tasksBase?: string): TaskListEntry[] {
 export interface AggregateTasksOptions {
   statusFilter?: string;
   taskListId?: string;
+  since?: string;
+  until?: string;
   tasksBase?: string;
   projectsBase?: string;
 }
@@ -967,12 +973,204 @@ export function aggregateTasks(opts: AggregateTasksOptions = {}): TaskEntry[] {
   const validStatuses = new Set(["in_progress", "pending", "completed"]);
   const validTasks = allTasks.filter((t) => t.status && validStatuses.has(t.status));
 
-  const statusFilter = opts.statusFilter ?? "all";
-  if (statusFilter !== "all") {
-    return validTasks.filter((t) => t.status === statusFilter);
+  // Date filtering (applies to JSONL-sourced tasks with timestamps)
+  const sinceDt = opts.since ? parseDateBoundary(opts.since) : null;
+  const untilDt = opts.until ? parseDateBoundary(opts.until) : null;
+
+  let dateFiltered = validTasks;
+  if (sinceDt || untilDt) {
+    dateFiltered = validTasks.filter((t) => {
+      const ts = parseTimestamp(t.timestamp);
+      if (!ts) return true; // filesystem tasks without timestamps pass through
+      if (sinceDt && ts < sinceDt) return false;
+      if (untilDt && ts > untilDt) return false;
+      return true;
+    });
   }
 
-  return validTasks;
+  const statusFilter = opts.statusFilter ?? "all";
+  if (statusFilter !== "all") {
+    return dateFiltered.filter((t) => t.status === statusFilter);
+  }
+
+  return dateFiltered;
+}
+
+// ---------------------------------------------------------------------------
+// Chart aggregation: daily tokens
+// ---------------------------------------------------------------------------
+
+export interface DailyTokenAggregationOptions {
+  since?: string;
+  until?: string;
+  projectFilter?: string;
+  projectsBase?: string;
+}
+
+export interface DailyTokenData {
+  labels: string[];
+  datasets: {
+    input: number[];
+    output: number[];
+    cache_read: number[];
+    cache_create: number[];
+  };
+}
+
+export function getDailyTokenAggregation(opts: DailyTokenAggregationOptions = {}): DailyTokenData {
+  const sessions = listSessions({
+    projectsBase: opts.projectsBase,
+    projectFilter: opts.projectFilter,
+    since: opts.since,
+    until: opts.until,
+    sort: "recency",
+    limit: 9999,
+  });
+
+  const buckets = new Map<string, { input: number; output: number; cache_read: number; cache_create: number }>();
+
+  for (const s of sessions) {
+    if (!s.date) continue;
+    try {
+      const stats = getStats(s.path);
+      const existing = buckets.get(s.date) ?? { input: 0, output: 0, cache_read: 0, cache_create: 0 };
+      existing.input += stats.tokens.input;
+      existing.output += stats.tokens.output;
+      existing.cache_read += stats.tokens.cache_read;
+      existing.cache_create += stats.tokens.cache_create;
+      buckets.set(s.date, existing);
+    } catch {}
+  }
+
+  const labels = [...buckets.keys()].sort();
+  return {
+    labels,
+    datasets: {
+      input: labels.map((d) => buckets.get(d)!.input),
+      output: labels.map((d) => buckets.get(d)!.output),
+      cache_read: labels.map((d) => buckets.get(d)!.cache_read),
+      cache_create: labels.map((d) => buckets.get(d)!.cache_create),
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Chart aggregation: model distribution
+// ---------------------------------------------------------------------------
+
+export interface ModelDistributionOptions {
+  since?: string;
+  until?: string;
+  projectFilter?: string;
+  projectsBase?: string;
+}
+
+export interface ModelDistributionEntry {
+  model: string;
+  tokens: number;
+  sessions: number;
+}
+
+export function getModelDistribution(opts: ModelDistributionOptions = {}): ModelDistributionEntry[] {
+  const sessions = listSessions({
+    projectsBase: opts.projectsBase,
+    projectFilter: opts.projectFilter,
+    sort: "recency",
+    limit: 9999,
+  });
+
+  const modelMap = new Map<string, { tokens: number; sessions: Set<string> }>();
+
+  for (const s of sessions) {
+    try {
+      const stats = getStats(s.path);
+      const totalTokens =
+        stats.tokens.input + stats.tokens.output + stats.tokens.cache_read + stats.tokens.cache_create;
+
+      for (const [model, count] of Object.entries(stats.models)) {
+        if (model === "unknown" || model === "<synthetic>") continue;
+        const existing = modelMap.get(model) ?? { tokens: 0, sessions: new Set<string>() };
+        // Distribute tokens proportionally by message count per model
+        const totalMsgs = Object.values(stats.models).reduce((a, b) => a + b, 0);
+        const proportion = totalMsgs > 0 ? count / totalMsgs : 0;
+        existing.tokens += Math.round(totalTokens * proportion);
+        existing.sessions.add(s.sessionId);
+        modelMap.set(model, existing);
+      }
+    } catch {}
+  }
+
+  const entries: ModelDistributionEntry[] = [...modelMap.entries()]
+    .map(([model, data]) => ({ model, tokens: data.tokens, sessions: data.sessions.size }))
+    .sort((a, b) => b.tokens - a.tokens);
+
+  // Group models with <3% share into "Other"
+  const totalTokens = entries.reduce((sum, e) => sum + e.tokens, 0);
+  if (totalTokens === 0) return entries;
+
+  const threshold = totalTokens * 0.03;
+  const main: ModelDistributionEntry[] = [];
+  let otherTokens = 0;
+
+  for (const entry of entries) {
+    if (entry.tokens >= threshold) {
+      main.push(entry);
+    } else {
+      otherTokens += entry.tokens;
+    }
+  }
+
+  if (otherTokens > 0) {
+    main.push({ model: "Other", tokens: otherTokens, sessions: entries.length - main.length });
+  }
+
+  return main;
+}
+
+// ---------------------------------------------------------------------------
+// Chart aggregation: activity heatmap
+// ---------------------------------------------------------------------------
+
+export interface ActivityHeatmapOptions {
+  since?: string;
+  until?: string;
+  projectFilter?: string;
+  projectsBase?: string;
+}
+
+export interface ActivityHeatmapData {
+  grid: number[][];
+  maxValue: number;
+  dayLabels: string[];
+  hourLabels: string[];
+}
+
+export function getActivityHeatmap(opts: ActivityHeatmapOptions = {}): ActivityHeatmapData {
+  const sessions = listSessions({
+    projectsBase: opts.projectsBase,
+    projectFilter: opts.projectFilter,
+    sort: "recency",
+    limit: 9999,
+  });
+
+  // 7 rows (Mon=0 .. Sun=6) x 24 cols (hours)
+  const grid: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
+  const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const hourLabels = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+
+  for (const s of sessions) {
+    const ts = parseTimestamp(s.started ?? s.lastActivity);
+    if (!ts) continue;
+    // JS getDay(): 0=Sun, 1=Mon ... 6=Sat → remap to 0=Mon ... 6=Sun
+    const jsDay = ts.getDay();
+    const day = jsDay === 0 ? 6 : jsDay - 1;
+    const hour = ts.getHours();
+    grid[day][hour]++;
+  }
+
+  const maxValue = Math.max(0, ...grid.flat());
+
+  return { grid, maxValue, dayLabels, hourLabels };
 }
 
 // ---------------------------------------------------------------------------
@@ -999,6 +1197,10 @@ if (import.meta.main) {
     return Number.isNaN(n) ? def : n;
   }
 
+  const since = getFlag("--since");
+  const until = getFlag("--until");
+  const formatFlag = getFlag("--format") ?? (args.includes("--json") ? "json" : "json");
+
   // Global overrides
   const projectsBase = getFlag("--projects-base");
   const tasksBase = getFlag("--tasks-base");
@@ -1017,7 +1219,7 @@ if (import.meta.main) {
       const project = getFlag("--project");
       const sort = (getFlag("--sort") ?? "recency") as "recency" | "size" | "duration";
       const limit = getFlagInt("--limit", 20);
-      const sessions = listSessions({ projectFilter: project, sort, limit, projectsBase });
+      const sessions = listSessions({ projectFilter: project, sort, limit, since, until, projectsBase });
       // Output with snake_case keys to match Python output
       const out = sessions.map((s) => ({
         session_id: s.sessionId,
@@ -1030,7 +1232,31 @@ if (import.meta.main) {
         size_bytes: s.sizeBytes,
         path: s.path,
       }));
-      console.log(toJson(out));
+      if (formatFlag === "table") {
+        const { formatTable, formatDuration, formatSize } = await import("./formatters");
+        console.log(
+          formatTable(out, [
+            { key: "session_id", label: "SESSION ID", width: 12 },
+            { key: "project", label: "PROJECT", width: 30 },
+            { key: "date", label: "DATE" },
+            { key: "messages", label: "MSGS", align: "right" as const },
+            {
+              key: "duration_minutes",
+              label: "DURATION",
+              align: "right" as const,
+              format: (v: unknown) => formatDuration((v as number) * 60),
+            },
+            {
+              key: "size_bytes",
+              label: "SIZE",
+              align: "right" as const,
+              format: (v: unknown) => formatSize(v as number),
+            },
+          ]),
+        );
+      } else {
+        console.log(toJson(out));
+      }
     } else if (command === "search") {
       // query is the first non-flag arg after "search"
       const cmdIdx = args.indexOf("search");
@@ -1038,12 +1264,12 @@ if (import.meta.main) {
       if (!query || query.startsWith("-")) exitWithError("Missing search query", 2);
 
       const project = getFlag("--project");
-      const since = getFlag("--since");
       const limit = getFlagInt("--limit", 20);
       const context = getFlagInt("--context", 0);
       const results = searchSessions(query, {
         projectFilter: project,
         since,
+        until,
         limit,
         context,
         projectsBase,
@@ -1057,11 +1283,22 @@ if (import.meta.main) {
         context_before: r.contextBefore,
         context_after: r.contextAfter,
       }));
-      console.log(out.length > 0 ? toNdjson(out) : toJson([]));
+      if (formatFlag === "table") {
+        const { formatTable } = await import("./formatters");
+        console.log(
+          formatTable(out, [
+            { key: "session_id", label: "SESSION ID", width: 12 },
+            { key: "project", label: "PROJECT", width: 30 },
+            { key: "timestamp", label: "TIMESTAMP", width: 20 },
+            { key: "match", label: "MATCH", width: 60 },
+          ]),
+        );
+      } else {
+        console.log(out.length > 0 ? toNdjson(out) : toJson([]));
+      }
     } else if (command === "timeline") {
       const project = getFlag("--project");
-      const since = getFlag("--since");
-      const timeline = getTimeline({ projectFilter: project, since, projectsBase });
+      const timeline = getTimeline({ projectFilter: project, since, until, projectsBase });
       const out = timeline.map((s) => ({
         session_id: s.sessionId,
         project: s.project,
@@ -1073,7 +1310,31 @@ if (import.meta.main) {
         size_bytes: s.sizeBytes,
         path: s.path,
       }));
-      console.log(toJson(out));
+      if (formatFlag === "table") {
+        const { formatTable, formatDuration, formatSize } = await import("./formatters");
+        console.log(
+          formatTable(out, [
+            { key: "session_id", label: "SESSION ID", width: 12 },
+            { key: "project", label: "PROJECT", width: 30 },
+            { key: "date", label: "DATE" },
+            { key: "messages", label: "MSGS", align: "right" as const },
+            {
+              key: "duration_minutes",
+              label: "DURATION",
+              align: "right" as const,
+              format: (v: unknown) => formatDuration((v as number) * 60),
+            },
+            {
+              key: "size_bytes",
+              label: "SIZE",
+              align: "right" as const,
+              format: (v: unknown) => formatSize(v as number),
+            },
+          ]),
+        );
+      } else {
+        console.log(toJson(out));
+      }
     } else if (command === "cleanup") {
       const olderThan = getFlag("--older-than");
       const minMessages = getFlagInt("--min-messages", 3);
@@ -1092,13 +1353,24 @@ if (import.meta.main) {
     } else if (command === "tasks") {
       const status = getFlag("--status") ?? "all";
       const taskListId = getFlag("--task-list");
-      const tasks = aggregateTasks({ statusFilter: status, taskListId, tasksBase, projectsBase });
+      const tasks = aggregateTasks({ statusFilter: status, taskListId, since, until, tasksBase, projectsBase });
       const out = tasks.map((t) => ({
         ...t,
         task_list_id: t.taskListId,
         taskListId: undefined,
       }));
-      console.log(toJson(out));
+      if (formatFlag === "table") {
+        const { formatTable } = await import("./formatters");
+        console.log(
+          formatTable(out, [
+            { key: "status", label: "STATUS", width: 12 },
+            { key: "subject", label: "SUBJECT", width: 40 },
+            { key: "task_list_id", label: "SESSION", width: 12 },
+          ]),
+        );
+      } else {
+        console.log(toJson(out));
+      }
     } else if (command === "task-lists") {
       const lists = listTaskLists(tasksBase);
       const out = lists.map((l) => ({

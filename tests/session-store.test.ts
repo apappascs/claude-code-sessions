@@ -12,6 +12,9 @@ import {
   encodeProjectPath,
   findCleanupCandidates,
   findOrphanTaskLists,
+  getActivityHeatmap,
+  getDailyTokenAggregation,
+  getModelDistribution,
   getSessionDetail,
   getTimeline,
   isValidId,
@@ -147,6 +150,59 @@ describe("listSessions", () => {
         projectFilter: "nonexistent",
       });
       expect(none).toHaveLength(0);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("listSessions date filtering", () => {
+  test("since filters out older sessions", () => {
+    const { base, cleanup } = makeFakeProjectsDir();
+    try {
+      // Fixture session date is 2026-04-10
+      const sessions = listSessions({ projectsBase: base, since: "2026-04-11", limit: 100 });
+      expect(sessions.length).toBe(0);
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("since includes matching sessions", () => {
+    const { base, cleanup } = makeFakeProjectsDir();
+    try {
+      const sessions = listSessions({ projectsBase: base, since: "2026-04-09", limit: 100 });
+      expect(sessions.length).toBeGreaterThan(0);
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("until filters out newer sessions", () => {
+    const { base, cleanup } = makeFakeProjectsDir();
+    try {
+      const sessions = listSessions({ projectsBase: base, until: "2026-04-09", limit: 100 });
+      expect(sessions.length).toBe(0);
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("since + until range", () => {
+    const { base, cleanup } = makeFakeProjectsDir();
+    try {
+      const sessions = listSessions({ projectsBase: base, since: "2026-04-09", until: "2026-04-11", limit: 100 });
+      expect(sessions.length).toBeGreaterThan(0);
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("since > until returns empty", () => {
+    const { base, cleanup } = makeFakeProjectsDir();
+    try {
+      const sessions = listSessions({ projectsBase: base, since: "2026-04-20", until: "2026-04-10", limit: 100 });
+      expect(sessions.length).toBe(0);
     } finally {
       cleanup();
     }
@@ -526,6 +582,51 @@ describe("getSessionDetail", () => {
   });
 });
 
+describe("searchSessions until filter", () => {
+  test("until filters out results after date", () => {
+    const { base, cleanup } = makeFakeProjectsDir();
+    try {
+      // Fixture has messages on 2026-04-10
+      const results = searchSessions("Python", { projectsBase: base, until: "2026-04-09" });
+      expect(results.length).toBe(0);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("getTimeline until filter", () => {
+  test("until filters out sessions after date", () => {
+    const { base, cleanup } = makeFakeProjectsDir();
+    try {
+      const timeline = getTimeline({ projectsBase: base, until: "2026-04-09" });
+      expect(timeline.length).toBe(0);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("aggregateTasks date filtering", () => {
+  test("since filters tasks by session date", () => {
+    const { base: projectsBase, cleanup: pc } = makeFakeProjectsDir();
+    const { base: tasksBase, cleanup: tc } = makeFakeTasksDir();
+    try {
+      // Task list "test-session-001" — session date is 2026-04-10
+      const tasks = aggregateTasks({ tasksBase, projectsBase, since: "2026-04-11" });
+      // Filesystem tasks (no timestamp) should pass through
+      const fsTasks = tasks.filter((t) => t.source === "filesystem");
+      expect(fsTasks.length).toBeGreaterThan(0);
+      // JSONL tasks from 2026-04-10 should be filtered out by since: "2026-04-11"
+      const jsonlTasks = tasks.filter((t) => t.source === "jsonl");
+      expect(jsonlTasks.length).toBe(0);
+    } finally {
+      pc();
+      tc();
+    }
+  });
+});
+
 describe("aggregateTasks", () => {
   test("from filesystem", () => {
     const { base, cleanup } = makeFakeTasksDir();
@@ -565,6 +666,77 @@ describe("aggregateTasks", () => {
       });
       expect(tasks.length).toBeGreaterThanOrEqual(1);
       expect(tasks[0].source).toBe("jsonl");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("getDailyTokenAggregation", () => {
+  test("buckets tokens by date", () => {
+    const { base, cleanup } = makeFakeProjectsDir();
+    try {
+      const data = getDailyTokenAggregation({ projectsBase: base });
+      expect(data.labels).toBeDefined();
+      expect(Array.isArray(data.labels)).toBe(true);
+      expect(data.datasets.input).toBeDefined();
+      expect(data.datasets.output).toBeDefined();
+      expect(data.datasets.cache_read).toBeDefined();
+      expect(data.datasets.cache_create).toBeDefined();
+      // Fixture has one session on 2026-04-10
+      expect(data.labels.length).toBeGreaterThan(0);
+      expect(data.labels).toContain("2026-04-10");
+      // That session has tokens
+      const idx = data.labels.indexOf("2026-04-10");
+      expect(data.datasets.input[idx]).toBeGreaterThan(0);
+      expect(data.datasets.output[idx]).toBeGreaterThan(0);
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("since filters dates", () => {
+    const { base, cleanup } = makeFakeProjectsDir();
+    try {
+      const data = getDailyTokenAggregation({ projectsBase: base, since: "2026-04-11" });
+      expect(data.labels.length).toBe(0);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("getModelDistribution", () => {
+  test("returns model token counts", () => {
+    const { base, cleanup } = makeFakeProjectsDir();
+    try {
+      const data = getModelDistribution({ projectsBase: base });
+      expect(Array.isArray(data)).toBe(true);
+      expect(data.length).toBeGreaterThan(0);
+      // Fixture uses claude-sonnet-4-20250514 and claude-opus-4-20250514
+      const models = data.map((d) => d.model);
+      expect(models.some((m) => m.includes("sonnet"))).toBe(true);
+      expect(data[0].tokens).toBeGreaterThan(0);
+      expect(data[0].sessions).toBeGreaterThan(0);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("getActivityHeatmap", () => {
+  test("returns 7x24 grid", () => {
+    const { base, cleanup } = makeFakeProjectsDir();
+    try {
+      const data = getActivityHeatmap({ projectsBase: base });
+      expect(data.grid.length).toBe(7);
+      expect(data.grid[0].length).toBe(24);
+      expect(data.dayLabels.length).toBe(7);
+      expect(data.hourLabels.length).toBe(24);
+      expect(data.maxValue).toBeGreaterThanOrEqual(0);
+      // At least one cell should have a value (from fixture)
+      const total = data.grid.flat().reduce((a, b) => a + b, 0);
+      expect(total).toBeGreaterThan(0);
     } finally {
       cleanup();
     }

@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/css/components.css">
   <script src="/js/app.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script>
     // Theme toggle — persists to localStorage
     (function() {
@@ -167,6 +168,93 @@
                   <span style="color:var(--text-tertiary);font-size:var(--text-sm);cursor:pointer">Search all sessions...</span>
                   <kbd>⌘K</kbd>
                 </div>
+
+                <!-- Charts section -->
+                <section class="charts-section" x-data="chartsComponent" x-init="init()" aria-label="Usage charts">
+                  <!-- Date range picker -->
+                  <div class="chart-range-picker" role="group" aria-label="Chart time range">
+                    <template x-for="r in ['7d','14d','30d','90d']" :key="r">
+                      <button class="range-btn"
+                              :class="{'is-active': $store.charts.range === r}"
+                              :aria-pressed="$store.charts.range === r"
+                              @click="$store.charts.setRange(r)" x-text="r"></button>
+                    </template>
+                  </div>
+
+                  <!-- Chart grid -->
+                  <div class="chart-grid">
+                    <!-- Token usage -->
+                    <div class="chart-cell chart-cell--tokens">
+                      <div class="chart-header">TOKEN USAGE</div>
+                      <template x-if="$store.charts.loading.tokens">
+                        <div class="skeleton"></div>
+                      </template>
+                      <template x-if="!$store.charts.loading.tokens && $store.charts.dailyTokens && $store.charts.dailyTokens.labels.length > 0">
+                        <div class="chart-cell-body">
+                          <canvas x-ref="tokenChart"></canvas>
+                        </div>
+                      </template>
+                      <template x-if="!$store.charts.loading.tokens && (!$store.charts.dailyTokens || $store.charts.dailyTokens.labels.length === 0)">
+                        <div class="empty-state">
+                          <span class="empty-state-icon">&#9671;</span>
+                          <span class="empty-state-text">No session data for this period</span>
+                        </div>
+                      </template>
+                    </div>
+
+                    <!-- Model distribution -->
+                    <div class="chart-cell chart-cell--models">
+                      <div class="chart-header">MODEL DISTRIBUTION</div>
+                      <template x-if="$store.charts.loading.models">
+                        <div class="skeleton"></div>
+                      </template>
+                      <template x-if="!$store.charts.loading.models && $store.charts.modelDistribution && $store.charts.modelDistribution.length > 0">
+                        <div>
+                          <div class="chart-cell-body">
+                            <canvas x-ref="modelChart"></canvas>
+                          </div>
+                          <div class="chart-legend" x-ref="modelLegend"></div>
+                        </div>
+                      </template>
+                      <template x-if="!$store.charts.loading.models && (!$store.charts.modelDistribution || $store.charts.modelDistribution.length === 0)">
+                        <div class="empty-state">
+                          <span class="empty-state-icon">&#9671;</span>
+                          <span class="empty-state-text">No model data for this period</span>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+
+                  <!-- Activity heatmap (full width) -->
+                  <div class="chart-cell chart-cell--heatmap">
+                    <div class="chart-header-row">
+                      <div class="chart-header">ACTIVITY BY HOUR</div>
+                      <div class="heatmap-legend">
+                        <span class="heatmap-legend-label">Less</span>
+                        <span class="heatmap-legend-swatch" style="background:var(--heatmap-0)"></span>
+                        <span class="heatmap-legend-swatch" style="background:var(--heatmap-1)"></span>
+                        <span class="heatmap-legend-swatch" style="background:var(--heatmap-2)"></span>
+                        <span class="heatmap-legend-swatch" style="background:var(--heatmap-3)"></span>
+                        <span class="heatmap-legend-swatch" style="background:var(--heatmap-4)"></span>
+                        <span class="heatmap-legend-label">More</span>
+                      </div>
+                    </div>
+                    <template x-if="$store.charts.loading.heatmap">
+                      <div class="skeleton"></div>
+                    </template>
+                    <template x-if="!$store.charts.loading.heatmap && $store.charts.activityHeatmap">
+                      <div class="chart-cell-body">
+                        <canvas x-ref="heatmapCanvas"></canvas>
+                      </div>
+                    </template>
+                    <template x-if="!$store.charts.loading.heatmap && !$store.charts.activityHeatmap">
+                      <div class="empty-state">
+                        <span class="empty-state-icon">&#9671;</span>
+                        <span class="empty-state-text">No activity data for this period</span>
+                      </div>
+                    </template>
+                  </div>
+                </section>
 
                 <!-- Two-column: Recent sessions + Pending tasks -->
                 <div class="dashboard-columns">

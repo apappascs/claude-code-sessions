@@ -875,3 +875,161 @@
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
 }
+
+/* ═══════════════════════════════════════════════════
+   Charts section
+   ═══════════════════════════════════════════════════ */
+
+.charts-section {
+  margin-bottom: var(--space-2xl);
+}
+
+.chart-range-picker {
+  display: flex;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+}
+
+.range-btn {
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.range-btn:hover {
+  background: var(--surface-3);
+}
+.range-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.range-btn.is-active {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1.8fr 1fr;
+  gap: var(--space-lg);
+}
+@media (max-width: 768px) {
+  .chart-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chart-cell {
+  position: relative;
+}
+
+.chart-cell-body {
+  position: relative;
+  height: 240px;
+}
+
+.chart-cell-body canvas {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.chart-cell--models .chart-cell-body {
+  height: 180px;
+}
+
+.chart-cell .skeleton,
+.chart-cell .empty-state {
+  height: 240px;
+}
+
+.chart-cell--heatmap {
+  margin-top: var(--space-2xl);
+}
+
+.chart-cell--heatmap .chart-cell-body {
+  height: auto;
+  position: static;
+}
+
+.chart-cell--heatmap .chart-cell-body canvas {
+  position: static;
+  width: 100% !important;
+  height: auto !important;
+}
+
+.chart-cell--heatmap .skeleton,
+.chart-cell--heatmap .empty-state {
+  height: 180px;
+}
+
+.chart-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-sm);
+}
+
+.chart-header-row .chart-header {
+  margin-bottom: 0;
+}
+
+.chart-header {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-sm);
+}
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.heatmap-legend-label {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  padding: 0 var(--space-xs);
+}
+
+.heatmap-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+}
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-xs);
+}
+.chart-legend-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+.chart-legend-label {
+  color: var(--text-secondary);
+}
+.chart-legend-value {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  margin-left: auto;
+}
