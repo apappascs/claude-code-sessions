@@ -1121,7 +1121,14 @@ export function getModelDistribution(opts: ModelDistributionOptions = {}): Model
   }
 
   if (otherTokens > 0) {
-    main.push({ model: "Other", tokens: otherTokens, sessions: entries.length - main.length });
+    const otherSessions = new Set<string>();
+    for (const entry of entries) {
+      if (entry.tokens < threshold) {
+        const data = modelMap.get(entry.model);
+        if (data) for (const sid of data.sessions) otherSessions.add(sid);
+      }
+    }
+    main.push({ model: "Other", tokens: otherTokens, sessions: otherSessions.size });
   }
 
   return main;
@@ -1199,7 +1206,7 @@ if (import.meta.main) {
 
   const since = getFlag("--since");
   const until = getFlag("--until");
-  const formatFlag = getFlag("--format") ?? (args.includes("--json") ? "json" : "json");
+  const formatFlag = getFlag("--format") ?? (args.includes("--json") ? "json" : "table");
 
   // Global overrides
   const projectsBase = getFlag("--projects-base");

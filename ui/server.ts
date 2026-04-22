@@ -196,10 +196,14 @@ function routeApi(
   if (path === "/api/dashboard/stats" && method === "GET") {
     const since = params.get("since") || undefined;
     const until = params.get("until") || undefined;
-    const allSessions = listSessions({ projectsBase, sort: "recency", limit: 9999, since, until });
+    const allSessions = listSessions({ projectsBase, sort: "recency", limit: 9999 });
     const projects = new Set(allSessions.map((s) => s.project));
-    const pendingTasks = aggregateTasks({ tasksBase, projectsBase, statusFilter: "pending", since, until });
-    const recentCount = allSessions.length;
+    const pendingTasks = aggregateTasks({ tasksBase, projectsBase, statusFilter: "pending" });
+    const now = Date.now();
+    const recentCount = allSessions.filter((s) => {
+      if (!s.lastActivity) return false;
+      return now - new Date(s.lastActivity).getTime() < 7 * 24 * 60 * 60 * 1000;
+    }).length;
     return jsonResponse({
       totalSessions: allSessions.length,
       totalProjects: projects.size,
