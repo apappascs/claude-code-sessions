@@ -53,6 +53,37 @@ export function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/**
+ * Format an array of objects as a plain-text table.
+ * columns: array of { key, header, width? }
+ */
+export function formatTable<T extends Record<string, unknown>>(
+  rows: T[],
+  columns: { key: keyof T; header: string; width?: number }[],
+): string {
+  if (rows.length === 0) return "(no results)";
+
+  // Compute column widths: max of header length and all cell values
+  const widths = columns.map((col) => {
+    const headerLen = col.header.length;
+    const maxData = rows.reduce((acc, row) => {
+      const cell = String(row[col.key] ?? "");
+      return Math.max(acc, cell.length);
+    }, 0);
+    return col.width ?? Math.max(headerLen, maxData);
+  });
+
+  function formatRow(cells: string[]): string {
+    return cells.map((c, i) => c.slice(0, widths[i]).padEnd(widths[i])).join("  ");
+  }
+
+  const header = formatRow(columns.map((c) => c.header));
+  const divider = widths.map((w) => "-".repeat(w)).join("  ");
+  const dataRows = rows.map((row) => formatRow(columns.map((c) => String(row[c.key] ?? ""))));
+
+  return [header, divider, ...dataRows].join("\n");
+}
+
 /** Parse a timestamp from session JSONL. Handles epoch ms, epoch s, ISO strings. */
 export function parseTimestamp(ts: string | number | null | undefined): Date | null {
   if (ts == null) return null;
