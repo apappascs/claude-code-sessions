@@ -3,9 +3,9 @@ import { describe, expect, test } from "bun:test";
 import {
   formatDuration,
   formatSize,
-  formatTable,
   parseDateBoundary,
   parseTimestamp,
+  renderTable,
   toJson,
   toNdjson,
   truncate,
@@ -175,7 +175,7 @@ describe("parseDateBoundary", () => {
   });
 });
 
-describe("formatTable", () => {
+describe("renderTable", () => {
   test("renders header, separator, and rows", () => {
     const rows = [
       { id: "abc123", name: "Test", count: 42 },
@@ -186,7 +186,7 @@ describe("formatTable", () => {
       { key: "name", label: "NAME" },
       { key: "count", label: "COUNT", align: "right" },
     ];
-    const result = formatTable(rows, columns);
+    const result = renderTable(rows, columns);
     const lines = result.split("\n").filter(Boolean);
     // Header + separator + 2 data rows + footer
     expect(lines.length).toBe(5);
@@ -200,7 +200,7 @@ describe("formatTable", () => {
 
   test("empty rows returns header + separator + footer", () => {
     const columns: { key: string; label: string }[] = [{ key: "id", label: "ID" }];
-    const result = formatTable([], columns);
+    const result = renderTable([], columns);
     const lines = result.split("\n").filter(Boolean);
     expect(lines.length).toBe(3);
     expect(lines[2]).toBe("0 rows");
@@ -209,7 +209,7 @@ describe("formatTable", () => {
   test("truncates long values with width option", () => {
     const rows = [{ text: "a".repeat(100) }];
     const columns: { key: string; label: string; width?: number }[] = [{ key: "text", label: "TEXT", width: 20 }];
-    const result = formatTable(rows, columns);
+    const result = renderTable(rows, columns);
     expect(result).toContain(`${"a".repeat(17)}...`);
   });
 
@@ -218,7 +218,7 @@ describe("formatTable", () => {
     const columns: { key: string; label: string; align?: "left" | "right" }[] = [
       { key: "n", label: "NUM", align: "right" },
     ];
-    const result = formatTable(rows, columns);
+    const result = renderTable(rows, columns);
     const lines = result.split("\n").filter(Boolean);
     // "42" should be right-padded less than "1234"
     const line42 = lines[2];
@@ -232,7 +232,7 @@ describe("formatTable", () => {
     const columns: { key: string; label: string; format?: (v: unknown) => string }[] = [
       { key: "bytes", label: "SIZE", format: (v) => formatSize(v as number) },
     ];
-    const result = formatTable(rows, columns);
+    const result = renderTable(rows, columns);
     expect(result).toContain("2.0 KB");
   });
 });

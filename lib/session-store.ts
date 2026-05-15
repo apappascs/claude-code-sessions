@@ -1240,9 +1240,9 @@ if (import.meta.main) {
         path: s.path,
       }));
       if (formatFlag === "table") {
-        const { formatTable, formatDuration, formatSize } = await import("./formatters");
+        const { renderTable, formatDuration, formatSize } = await import("./formatters");
         console.log(
-          formatTable(out, [
+          renderTable(out, [
             { key: "session_id", label: "SESSION ID", width: 12 },
             { key: "project", label: "PROJECT", width: 30 },
             { key: "date", label: "DATE" },
@@ -1291,9 +1291,9 @@ if (import.meta.main) {
         context_after: r.contextAfter,
       }));
       if (formatFlag === "table") {
-        const { formatTable } = await import("./formatters");
+        const { renderTable } = await import("./formatters");
         console.log(
-          formatTable(out, [
+          renderTable(out, [
             { key: "session_id", label: "SESSION ID", width: 12 },
             { key: "project", label: "PROJECT", width: 30 },
             { key: "timestamp", label: "TIMESTAMP", width: 20 },
@@ -1318,9 +1318,9 @@ if (import.meta.main) {
         path: s.path,
       }));
       if (formatFlag === "table") {
-        const { formatTable, formatDuration, formatSize } = await import("./formatters");
+        const { renderTable, formatDuration, formatSize } = await import("./formatters");
         console.log(
-          formatTable(out, [
+          renderTable(out, [
             { key: "session_id", label: "SESSION ID", width: 12 },
             { key: "project", label: "PROJECT", width: 30 },
             { key: "date", label: "DATE" },
@@ -1367,9 +1367,9 @@ if (import.meta.main) {
         taskListId: undefined,
       }));
       if (formatFlag === "table") {
-        const { formatTable } = await import("./formatters");
+        const { renderTable } = await import("./formatters");
         console.log(
-          formatTable(out, [
+          renderTable(out, [
             { key: "status", label: "STATUS", width: 12 },
             { key: "subject", label: "SUBJECT", width: 40 },
             { key: "task_list_id", label: "SESSION", width: 12 },

@@ -15,6 +15,7 @@
     "analytics",
     "tasks",
     "dashboard",
-    "context-recovery"
+    "context-recovery",
+    "memory"
   ]
 }

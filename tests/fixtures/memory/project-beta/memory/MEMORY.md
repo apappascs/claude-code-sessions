@@ -1,0 +1,2 @@
+- [Launch reminder](project_expired_reminder.md) — Feature launch on 2025-01-15
+- [Config locations](reference_stale_path.md) — Key file paths for the project
