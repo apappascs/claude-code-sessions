@@ -72,7 +72,7 @@ For each finding, the `ai_action` field tells you what to do:
 5. If approved, prepend it to the file
 
 **stale_path:**
-1. For each missing path, search the filesystem by filename: `find / -name "filename" -type f 2>/dev/null | head -5`
+1. For each missing path, search the filesystem by filename: `find "$HOME" -name "filename" -type f 2>/dev/null | head -5`
 2. If found at a new location, suggest updating the path in the memory file
 3. If not found, suggest removing the reference or marking the memory for deletion
 

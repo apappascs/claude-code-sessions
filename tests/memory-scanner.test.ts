@@ -77,6 +77,20 @@ Just a body.
     expect(result.type).toBe("reference");
     expect(result.body).toContain("Just a body.");
   });
+
+  test("strips quotes from frontmatter values", () => {
+    const content = `---
+name: "Quoted name"
+description: 'Single quoted'
+type: user
+---
+
+Body.
+`;
+    const result = parseFrontmatter(content);
+    expect(result.name).toBe("Quoted name");
+    expect(result.description).toBe("Single quoted");
+  });
 });
 
 // ---------------------------------------------------------------------------

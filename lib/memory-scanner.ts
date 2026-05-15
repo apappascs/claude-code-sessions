@@ -151,7 +151,10 @@ export function parseFrontmatter(content: string): Frontmatter {
     const colonIdx = line.indexOf(":");
     if (colonIdx === -1) continue;
     const key = line.slice(0, colonIdx).trim();
-    const value = line.slice(colonIdx + 1).trim();
+    const value = line
+      .slice(colonIdx + 1)
+      .trim()
+      .replace(/^["'](.*?)["']$/, "$1");
     if (key === "name") fm.name = value || null;
     else if (key === "description") fm.description = value || null;
     else if (key === "type") fm.type = value || null;
@@ -626,7 +629,7 @@ export function auditMemories(opts: AuditOptions = {}): AuditResult {
 // ---------------------------------------------------------------------------
 
 /**
- * Search memory file contents using a case-insensitive regex query.
+ * Search memory file contents using a case-insensitive literal query.
  */
 export function searchMemories(query: string, opts: SearchOptions = {}): MemorySearchResult[] {
   const contextLines = opts.context ?? 0;
