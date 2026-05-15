@@ -194,8 +194,6 @@ function routeApi(
 
   // GET /api/dashboard/stats
   if (path === "/api/dashboard/stats" && method === "GET") {
-    const since = params.get("since") || undefined;
-    const until = params.get("until") || undefined;
     const allSessions = listSessions({ projectsBase, sort: "recency", limit: 9999 });
     const projects = new Set(allSessions.map((s) => s.project));
     const pendingTasks = aggregateTasks({ tasksBase, projectsBase, statusFilter: "pending" });

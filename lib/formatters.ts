@@ -108,7 +108,7 @@ export interface TableColumn {
 }
 
 /** Format an array of objects as a plain-text aligned table. */
-export function formatTable(rows: Record<string, unknown>[], columns: TableColumn[]): string {
+export function renderTable(rows: Record<string, unknown>[], columns: TableColumn[]): string {
   // Compute cell values
   const cells: string[][] = rows.map((row) =>
     columns.map((col) => {
