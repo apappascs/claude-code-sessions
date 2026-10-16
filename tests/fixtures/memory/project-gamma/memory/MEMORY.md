@@ -1,0 +1,2 @@
+- [Pipeline notes](no_frontmatter.md) — CI pipeline configuration notes
+- [User profile](user_profile.md) — Frontend developer focused on React
